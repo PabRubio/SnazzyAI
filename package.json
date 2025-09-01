@@ -1,0 +1,32 @@
+{
+  "name": "snazzy",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@gorhom/bottom-sheet": "^5.2.3",
+    "@react-native-masked-view/masked-view": "^0.3.2",
+    "axios": "^1.11.0",
+    "babel-preset-expo": "~13.0.0",
+    "expo": "~53.0.22",
+    "expo-camera": "~16.1.11",
+    "expo-haptics": "~14.1.4",
+    "expo-linear-gradient": "^14.1.5",
+    "expo-status-bar": "~2.2.3",
+    "react": "19.0.0",
+    "react-native": "0.79.5",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-reanimated": "~3.17.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@babel/parser": "^7.28.3",
+    "@expo/cli": "^0.24.21"
+  },
+  "private": true
+}
