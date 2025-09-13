@@ -5,6 +5,11 @@ import { OPENAI_API_KEY, validateApiKey, obfuscateApiKey } from '../constants/ap
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const TIMEOUT = 30000; // 30 seconds
 
+// Backend URL - update this with your ngrok URL when using ngrok
+// IMPORTANT: Use HTTP (not HTTPS) to avoid SSL certificate issues on Android
+// Example: 'http://abc123.ngrok-free.app' (without /api at the end)
+const BACKEND_URL = 'http://192.168.1.34:8000'; // UPDATE THIS WITH HTTP URL!
+
 // Validate API key on import
 try {
   validateApiKey();
@@ -202,100 +207,70 @@ const handleApiError = (error, attempt = 1) => {
 // Sleep utility for retry delays
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Function to search for real products using GPT-4o search
+// Function to search for real products using backend API
 const searchForProducts = async (searchTerms) => {
   try {
-    const searchRequest = {
-      model: 'gpt-4o-search-preview',
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a shopping assistant with web search capabilities. Search the web for real fashion products currently available for purchase.
-          
-CRITICAL REQUIREMENTS:
-1. Search for REAL products from actual retailers (Amazon, Nordstrom, ASOS, Nike, Adidas, Zara, H&M, etc.)
-2. Include ACTUAL current prices in USD
-3. For imageUrl: Provide DIRECT image URLs that will load in a mobile app. Use URLs from:
-   - Amazon CDN (m.media-amazon.com, images-na.ssl-images-amazon.com)
-   - Retailer CDNs that serve images directly
-   - URLs ending in .jpg, .jpeg, .png, .webp
-4. For purchaseUrl: Provide the actual product page URL
+    console.log('Searching for products with web search:', searchTerms);
+    console.log('Using backend URL:', BACKEND_URL);
 
-Return ONLY a JSON array with exactly 5 real products:
-[
-  {
-    "name": "EXACT product name",
-    "brand": "actual brand",
-    "description": "brief product description",
-    "price": "ACTUAL price (e.g., '$49.99', '$120.00')",
-    "imageUrl": "DIRECT image URL that will load in React Native Image component",
-    "purchaseUrl": "ACTUAL product page URL"
-  }
-]`
+    // Use fetch instead of axios to avoid SSL certificate issues with ngrok
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/search-products/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': '69420',
+          'User-Agent': 'SnazzyApp/1.0'
         },
-        {
-          role: 'user',
-          content: `Search online NOW for these specific fashion items and return 5 REAL products with current prices and working image URLs: ${searchTerms}`
-        }
-      ]
-    };
-
-    console.log('Searching for products:', searchTerms);
-    const response = await apiClient.post('/chat/completions', searchRequest);
-    const content = response.data.choices[0].message.content;
-    console.log('Raw search response:', content);
-    
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      const products = JSON.parse(jsonMatch[0]);
-      console.log('Parsed products:', products);
-      
-      // Validate and fix URLs
-      return products.map((product, index) => {
-        // Log each product for debugging
-        console.log(`Product ${index + 1}:`, product);
-        
-        // Validate image URL - if it's not a direct image, use a fallback
-        if (!product.imageUrl || 
-            (!product.imageUrl.match(/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i) && 
-             !product.imageUrl.includes('media-amazon.com') &&
-             !product.imageUrl.includes('images-amazon.com') &&
-             !product.imageUrl.includes('cdninstagram') &&
-             !product.imageUrl.includes('cloudinary'))) {
-          console.log(`Invalid image URL for product ${index + 1}, using fallback`);
-          // Use a high-quality placeholder
-          const itemType = product.name?.toLowerCase() || 'fashion';
-          if (itemType.includes('shoe') || itemType.includes('sneaker')) {
-            product.imageUrl = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop';
-          } else if (itemType.includes('jacket') || itemType.includes('coat')) {
-            product.imageUrl = 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&h=400&fit=crop';
-          } else if (itemType.includes('bag')) {
-            product.imageUrl = 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&h=400&fit=crop';
-          } else if (itemType.includes('watch')) {
-            product.imageUrl = 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=400&h=400&fit=crop';
-          } else {
-            product.imageUrl = 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=400&h=400&fit=crop';
-          }
-        }
-        
-        // Ensure purchase URL is valid
-        if (!product.purchaseUrl || !product.purchaseUrl.startsWith('http')) {
-          console.log(`Invalid purchase URL for product ${index + 1}, using Google Shopping`);
-          const searchQuery = encodeURIComponent(`${product.brand} ${product.name}`);
-          product.purchaseUrl = `https://www.google.com/search?q=${searchQuery}&tbm=shop`;
-        }
-        
-        return product;
+        body: JSON.stringify({ searchTerms }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Backend error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Backend response:', data);
+
+      if (data.products && Array.isArray(data.products)) {
+        console.log(`Found ${data.products.length} products`);
+        return data.products;
+      }
+
+      console.log('No products found in response');
+      return [];
+    } catch (fetchError) {
+      if (fetchError.name === 'AbortError') {
+        console.error('Request timeout - search took too long');
+      } else {
+        console.error('Fetch error:', fetchError);
+        console.error('Fetch error message:', fetchError.message);
+      }
+      throw fetchError;
     }
-    console.log('No products found in response');
-    return [];
   } catch (error) {
     console.error('Product search error:', error.message);
-    if (error.response) {
-      console.error('API error response:', error.response.data);
+    console.error('Full error object:', error);
+    console.log('Network or configuration error - check BACKEND_URL');
+    console.log('Current BACKEND_URL:', BACKEND_URL);
+
+    // If it's an SSL error, provide helpful message
+    if (error.message && error.message.includes('certificate')) {
+      console.error('SSL Certificate issue detected. This is common with ngrok on Android.');
+      console.error('Make sure your ngrok URL is correct and the tunnel is running.');
     }
+
     return [];
   }
 };
@@ -349,10 +324,20 @@ Return a JSON response:
       const analysisContent = analysisResponse.data.choices[0].message.content;
       const analysisJson = JSON.parse(analysisContent.match(/\{[\s\S]*\}/)[0]);
 
-      // Step 2: DISABLED - Product search feature disabled, using static placeholder items
+      // Step 2: Search for real products based on analysis
       let recommendations = [];
       
-      // Static clothing items placeholder (recommendation feature disabled)
+      // Try to get real product recommendations first
+      try {
+        if (analysisJson.searchTerms) {
+          console.log('Searching for real products with terms:', analysisJson.searchTerms);
+          recommendations = await searchForProducts(analysisJson.searchTerms);
+        }
+      } catch (searchError) {
+        console.error('Product search failed, using fallback:', searchError.message);
+      }
+      
+      // Static clothing items as fallback if search fails or returns empty
       const staticClothingItems = [
         {
           name: "Plain white t-shirt",
@@ -460,14 +445,18 @@ Return a JSON response:
         }
       ];
       
-      // Return all static items (no longer randomly selecting)
-      recommendations = staticClothingItems
+      // Only use real recommendations from search, no fallback to static items
+      // Keep static items in code but don't use them
+      if (!recommendations || recommendations.length === 0) {
+        console.log('No real products found from search');
+        recommendations = [];
+      }
 
       // Combine analysis with recommendations
       const finalResult = {
         outfitName: analysisJson.outfitName,
         shortDescription: analysisJson.shortDescription,
-        rating: 10, // Always set rating to 10
+        rating: analysisJson.rating, // Use the actual rating from the analysis
         isValidPhoto: analysisJson.isValidPhoto,
         recommendations: recommendations
       };
