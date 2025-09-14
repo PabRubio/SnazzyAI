@@ -1,0 +1,37 @@
+# Docker Compose override for Linux host networking
+# Use when connecting physical devices on the same LAN if port mapping isn't enough
+#
+# Usage:
+#   docker compose -f compose.yml -f compose.host.yml up --build
+#
+# WARNING: Linux only (Ubuntu 22/24). Host networking conflicts with port mappings.
+
+version: '3.8'
+
+services:
+  # Frontend service with host networking for improved device discovery
+  frontend:
+    # Use host networking to allow Expo to bind directly to host network interfaces
+    # This improves device discovery for physical phones/tablets on the same LAN
+    network_mode: host
+
+    # Remove port mappings (host networking makes them redundant and causes conflicts)
+    ports: []
+
+    environment:
+      # Override backend URL to use localhost since we're on host network
+      - EXPO_PUBLIC_BACKEND_URL=http://localhost:8000
+
+      # Host networking environment variables
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - EXPO_USE_DEV_SERVER=1
+      - EXPO_NO_TUNNELING=1
+
+      # Keep hot reload settings
+      - CHOKIDAR_USEPOLLING=1
+
+      # Pass through API keys
+      - EXPO_PUBLIC_OPENAI_API_KEY=${EXPO_PUBLIC_OPENAI_API_KEY}
+
+# Note: Backend service is not modified - it continues using bridge networking
+# and port mapping since only frontend needs host networking for device discovery

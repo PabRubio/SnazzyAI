@@ -7,7 +7,8 @@
       "Bash(npx expo start:*)",
       "Bash(npx:*)",
       "Bash(node:*)",
-      "Bash(npm --version)"
+      "Bash(npm --version)",
+      "Bash(git checkout:*)"
     ]
   },
   "enabledMcpjsonServers": [

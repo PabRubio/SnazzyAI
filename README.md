@@ -231,6 +231,195 @@ npm run lint
 
 For issues, questions, or suggestions, please open an issue on the project repository.
 
+## Docker Development (Ubuntu 22.04 & 24.04)
+
+### Prerequisites
+
+- **Docker Engine ≥ 24** with **Compose v2** installed
+- **Ubuntu 22.04 or 24.04** (other Linux distributions may work)
+- **At least 4GB RAM** for containers
+
+### Installation
+
+Install Docker and Docker Compose on Ubuntu:
+
+```bash
+# Install Docker Engine
+sudo apt update
+sudo apt install ca-certificates curl gnupg lsb-release
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Add your user to docker group
+sudo usermod -aG docker $USER
+# Log out and back in for group changes to take effect
+```
+
+### Quick Start
+
+1. **One-time setup**:
+```bash
+chmod +x scripts/dev/*.sh
+./scripts/dev/bootstrap.sh
+```
+
+2. **Configure API keys** in `.env` and `backend/.env` files
+
+3. **Start development environment**:
+```bash
+# Normal mode (recommended)
+docker compose up --build
+
+# Or use the helper script
+./scripts/dev/up.sh
+```
+
+### Development Modes
+
+#### Normal Mode (Default)
+Uses Docker port mapping. Works everywhere including WSL2, virtual machines, and all Linux distributions.
+
+```bash
+docker compose up --build
+```
+
+**Access your app:**
+- Backend API: http://localhost:8000
+- Expo DevTools: http://localhost:19000
+- Frontend (web): http://localhost:19006
+- Mobile app: Scan QR code from Expo DevTools
+
+#### Host Networking Mode (Linux Only)
+Better for physical device discovery when port mapping has issues. Only works on native Linux (Ubuntu 22/24).
+
+```bash
+# Using override compose file
+docker compose -f compose.yml -f compose.host.yml up --build
+
+# Using helper script
+./scripts/dev/up.sh host
+```
+
+### Services
+
+The Docker environment runs these services:
+
+- **frontend**: React Native/Expo dev server with hot reload
+- **backend**: Django API server with auto-reload
+- **ngrok** (optional): Tunnel for mobile device testing
+
+Enable ngrok with:
+```bash
+docker compose --profile mobile up --build
+```
+
+### Development Features
+
+#### Hot Reload
+- **Frontend**: Edit any `.js`/`.jsx` file to trigger immediate reload
+- **Backend**: Django auto-reloads on `.py` file changes
+- **Stable in containers**: Uses polling for file watching
+
+#### File Permissions
+- All containers run as your user UID/GID (no root-owned files)
+- Source code mounted for editing with host tools
+- `node_modules` kept in container for stability
+
+#### Environment Variables
+- `EXPO_PUBLIC_BACKEND_URL`: Set to `http://backend:8000` for container communication
+- API keys loaded from `.env` and `backend/.env` files
+- Hot reload settings automatically configured
+
+### Mobile Device Testing
+
+#### Option 1: QR Code (Works Everywhere)
+1. Start normal mode: `docker compose up --build`
+2. Open http://localhost:19000 in browser
+3. Scan QR code with Expo Go app
+
+#### Option 2: Host Networking (Linux Only)
+```bash
+./scripts/dev/up.sh host
+```
+Better device discovery, direct network access.
+
+#### Option 3: ngrok Tunnel
+```bash
+# Add NGROK_AUTHTOKEN to .env file
+docker compose --profile mobile up --build
+```
+
+### Troubleshooting
+
+#### Permission Issues
+```bash
+# Fix ownership of any root-owned files
+sudo chown -R $USER:$USER .
+
+# Re-run bootstrap to set correct UID/GID
+./scripts/dev/bootstrap.sh
+```
+
+#### Port Conflicts
+```bash
+# Check what's using ports
+sudo netstat -tulpn | grep -E ':(8000|19000)'
+
+# Stop conflicting services
+sudo systemctl stop apache2  # Example
+```
+
+#### Container Issues
+```bash
+# Clean rebuild
+docker compose down --volumes
+docker system prune -f
+docker compose up --build
+
+# View logs
+docker compose logs frontend
+docker compose logs backend
+```
+
+#### Mobile Connection Issues
+```bash
+# Try host networking mode (Linux only)
+./scripts/dev/up.sh host
+
+# Check firewall
+sudo ufw status
+sudo ufw allow 19000:19006/tcp
+```
+
+### Stopping the Environment
+
+```bash
+# Ctrl+C in the terminal, or:
+docker compose down
+
+# Remove volumes (clean slate)
+docker compose down --volumes
+```
+
+### Files Structure
+
+```
+SnazzyAI/
+├── docker/
+│   ├── backend.Dockerfile      # Django container
+│   └── frontend.Dockerfile     # React Native/Expo container
+├── scripts/dev/
+│   ├── bootstrap.sh           # One-time setup
+│   └── up.sh                  # Development startup
+├── compose.yml                # Main Docker Compose
+├── compose.host.yml           # Linux host networking override
+├── .dockerignore             # Build context exclusions
+├── .env.docker              # Container user mapping (auto-generated)
+└── ...
+```
+
 ## Acknowledgments
 
 - Built with Task Master AI for organized development workflow
