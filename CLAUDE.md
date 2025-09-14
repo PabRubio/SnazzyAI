@@ -27,6 +27,19 @@ SnazzyAI is a React Native/Expo mobile application for AI-powered fashion analys
 
 ### Before Completing Tasks
 Always run these commands to ensure code quality:
+
+**Docker Environment (Recommended):**
+```bash
+# Frontend tests (if configured)
+docker compose exec frontend npm test
+docker compose exec frontend npx expo doctor
+
+# Backend tests
+docker compose exec backend python manage.py test
+docker compose exec backend python manage.py check
+```
+
+**Native Environment:**
 ```bash
 # Frontend (React Native)
 npm test           # Run test suite (if configured)
@@ -47,9 +60,28 @@ python manage.py check    # Check for issues
 **Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
 @./.taskmaster/CLAUDE.md
 
-## SnazzyAI Specific Commands
+## SnazzyAI Development Environment
 
-### Quick Development Commands
+### Docker Development (Recommended)
+For consistent development environment across Ubuntu 22.04 & 24.04:
+
+```bash
+# One-time setup
+./scripts/dev/bootstrap.sh
+
+# Start development (choose one)
+docker compose up --build              # Normal mode (recommended)
+./scripts/dev/up.sh                    # Using helper script
+./scripts/dev/up.sh host               # Host networking (Linux only, better device discovery)
+docker compose --profile mobile up    # Include ngrok for mobile testing
+
+# Access points
+# Backend API: http://localhost:8000
+# Expo DevTools: http://localhost:19000
+# Frontend Web: http://localhost:19006
+```
+
+### Native Development (Alternative)
 ```bash
 # Frontend - Start Expo development server
 npm start          # Start Expo server
@@ -75,6 +107,8 @@ source backend/venv/bin/activate         # Activate Python virtual environment
 - `/backend/server` - Django app for API endpoints
 - `/android` & `/ios` - Native platform code
 - `/.taskmaster` - Task management files (do not edit manually)
+- `/docker` - Docker development environment files
+- `/scripts/dev` - Development helper scripts for Docker
 
 ### Key Files to Know
 - `App.js` - Main app with camera and UI logic
@@ -83,22 +117,54 @@ source backend/venv/bin/activate         # Activate Python virtual environment
 - `constants/apiKeys.js` - API key configuration
 - `.env` - Environment variables (frontend)
 - `backend/.env` - Environment variables (backend)
+- `compose.yml` - Main Docker Compose configuration
+- `compose.host.yml` - Linux host networking override
+- `scripts/dev/bootstrap.sh` - Docker environment setup script
+- `scripts/dev/up.sh` - Docker development startup script
+- `.env.docker` - Container user mapping (auto-generated)
 
 ## Important Reminders
-- Always use Task Master to track development progress
-- Never commit directly to main branch unless explicitly requested
-- Test all changes before marking tasks as complete
-- Follow existing React Native and Django patterns
-- When working on mobile features, test on both iOS and Android
-- Update `BACKEND_URL` in `services/openaiService.js` when testing with ngrok
-- Ensure both frontend and backend servers are running for full functionality
-- API keys must be configured in both `.env` files (root and backend)
-- Only create new files when absolutely necessary
-- Prefer editing existing files over creating new ones
+- **Always use Task Master** to track development progress
+- **Never commit directly to main branch** unless explicitly requested
+- **Test all changes** before marking tasks as complete
+- **Follow existing React Native and Django patterns**
+- **Use Docker for development** - provides consistent environment across Ubuntu versions
+- **API keys must be configured** in both `.env` files (root and backend)
+- **Only create new files when absolutely necessary**
+- **Prefer editing existing files over creating new ones**
+
+## Development Environment Setup
+### Docker (Recommended for Team Development)
+- **Consistent environment** across Ubuntu 22.04 & 24.04
+- **Hot reload** for both frontend and backend
+- **No "works on my machine" issues**
+- **Proper file permissions** (no root-owned files)
+- **Multiple mobile testing options** (QR code, host networking, ngrok)
+
+### When to Use Native vs Docker
+- **Use Docker when:**
+  - Working in a team with different Ubuntu versions
+  - Want guaranteed environment consistency
+  - Need mobile device testing with multiple connection options
+  - Prefer isolation from host system packages
+
+- **Use Native when:**
+  - Working solo with stable local environment
+  - Need maximum performance (no container overhead)
+  - Prefer direct access to system tools and debugging
 
 ## Mobile Development Tips
+### Docker Environment
+- **Start with**: `./scripts/dev/up.sh` or `docker compose up --build`
+- **Access DevTools**: http://localhost:19000 (scan QR for mobile)
+- **Backend URL**: Automatically set to `http://backend:8000` in containers
+- **Device issues**: Try `./scripts/dev/up.sh host` (Linux only) for better discovery
+- **Remote testing**: Enable ngrok with `docker compose --profile mobile up`
+
+### Native Environment
 - Use `expo start` for development with hot reloading
 - Test camera features on physical devices (simulators have limitations)
 - Check console logs in Expo Go app for debugging
 - Use ngrok for testing backend API from mobile devices
+- Update `BACKEND_URL` in `services/openaiService.js` when testing with ngrok
 - Remember to handle both iOS and Android platform differences

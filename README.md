@@ -261,19 +261,36 @@ sudo usermod -aG docker $USER
 
 1. **One-time setup**:
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd SnazzyAI
+
+# Set up Docker environment
 chmod +x scripts/dev/*.sh
 ./scripts/dev/bootstrap.sh
 ```
 
-2. **Configure API keys** in `.env` and `backend/.env` files
+2. **Configure API keys**:
+```bash
+# Edit .env file (created by bootstrap.sh)
+nano .env
+# Add your EXPO_PUBLIC_OPENAI_API_KEY and NGROK_AUTHTOKEN
+
+# Edit backend/.env file
+nano backend/.env
+# Add OPENAI_API_KEY and Django settings
+```
 
 3. **Start development environment**:
 ```bash
-# Normal mode (recommended)
+# Normal mode (recommended for most use cases)
 docker compose up --build
 
-# Or use the helper script
+# Or use the helper script with status information
 ./scripts/dev/up.sh
+
+# For better mobile device discovery (Linux only)
+./scripts/dev/up.sh host
 ```
 
 ### Development Modes
@@ -317,38 +334,73 @@ docker compose --profile mobile up --build
 
 ### Development Features
 
-#### Hot Reload
-- **Frontend**: Edit any `.js`/`.jsx` file to trigger immediate reload
-- **Backend**: Django auto-reloads on `.py` file changes
-- **Stable in containers**: Uses polling for file watching
+#### Hot Reload & Live Development
+- **Frontend**: Edit any `.js`/`.jsx` file to trigger immediate reload in browser and mobile
+- **Backend**: Django auto-reloads on `.py` file changes with instant API updates
+- **Stable in containers**: Uses polling for reliable file watching across Ubuntu versions
+- **Debugging**: Console logs available in both browser DevTools and mobile app
 
-#### File Permissions
-- All containers run as your user UID/GID (no root-owned files)
-- Source code mounted for editing with host tools
-- `node_modules` kept in container for stability
+#### Cross-Platform Compatibility
+- **Identical environment** on Ubuntu 22.04 and 24.04
+- **Same commands** work for all developers
+- **Consistent package versions** isolated in containers
+- **No dependency conflicts** with host system
 
-#### Environment Variables
-- `EXPO_PUBLIC_BACKEND_URL`: Set to `http://backend:8000` for container communication
-- API keys loaded from `.env` and `backend/.env` files
-- Hot reload settings automatically configured
+#### File Permissions & Security
+- All containers run as your user UID/GID (prevents root-owned files)
+- Source code mounted for editing with host tools (VS Code, etc.)
+- `node_modules` and Python packages kept in containers for stability
+- Environment variables properly isolated and secured
+
+#### Backend Communication
+- `EXPO_PUBLIC_BACKEND_URL`: Automatically set to `http://backend:8000` for service-to-service communication
+- API keys securely loaded from `.env` and `backend/.env` files
+- CORS properly configured for cross-origin requests
+- Hot reload settings optimized for container environments
 
 ### Mobile Device Testing
 
-#### Option 1: QR Code (Works Everywhere)
-1. Start normal mode: `docker compose up --build`
-2. Open http://localhost:19000 in browser
-3. Scan QR code with Expo Go app
+#### Option 1: QR Code Scanning (Works Everywhere)
+**Best for**: Most developers, works on all systems
+```bash
+docker compose up --build
+# 1. Open http://localhost:19000 in your browser
+# 2. Install Expo Go app on your phone
+# 3. Scan QR code displayed in browser
+# 4. App loads directly on your device with hot reload
+```
 
 #### Option 2: Host Networking (Linux Only)
+**Best for**: Physical device discovery issues on Linux
 ```bash
 ./scripts/dev/up.sh host
+# Direct network binding for better device discovery
+# Only works on native Linux (Ubuntu 22/24, not WSL)
+# Bypasses Docker networking for improved connectivity
 ```
-Better device discovery, direct network access.
 
-#### Option 3: ngrok Tunnel
+#### Option 3: ngrok Tunnel (Remote Testing)
+**Best for**: Testing from outside your network, sharing with others
 ```bash
-# Add NGROK_AUTHTOKEN to .env file
+# 1. Get ngrok auth token from https://dashboard.ngrok.com/get-started/your-authtoken
+# 2. Add NGROK_AUTHTOKEN=your_token_here to .env file
+# 3. Start with mobile profile:
 docker compose --profile mobile up --build
+# 4. Check logs for public ngrok URL
+# 5. Use public URL to test from anywhere
+```
+
+#### Troubleshooting Mobile Connections
+```bash
+# If QR code doesn't work, try host networking (Linux only)
+./scripts/dev/up.sh host
+
+# Check firewall settings
+sudo ufw status
+sudo ufw allow 19000:19006/tcp
+
+# Verify both devices on same Wi-Fi network
+ip route | grep default    # Check your local network
 ```
 
 ### Troubleshooting
@@ -403,21 +455,74 @@ docker compose down
 docker compose down --volumes
 ```
 
-### Files Structure
+### Docker Files Structure
 
 ```
 SnazzyAI/
-├── docker/
-│   ├── backend.Dockerfile      # Django container
-│   └── frontend.Dockerfile     # React Native/Expo container
-├── scripts/dev/
-│   ├── bootstrap.sh           # One-time setup
-│   └── up.sh                  # Development startup
-├── compose.yml                # Main Docker Compose
-├── compose.host.yml           # Linux host networking override
-├── .dockerignore             # Build context exclusions
-├── .env.docker              # Container user mapping (auto-generated)
-└── ...
+├── docker/                          # Docker configuration
+│   ├── backend.Dockerfile           # Django container (Python 3.12)
+│   └── frontend.Dockerfile          # React Native/Expo container (Node 18)
+├── scripts/dev/                     # Development scripts
+│   ├── bootstrap.sh                 # One-time environment setup
+│   └── up.sh                        # Development server startup
+├── compose.yml                      # Main Docker Compose configuration
+├── compose.host.yml                 # Linux host networking override
+├── .dockerignore                    # Build context exclusions
+├── .env.docker                      # Container user mapping (auto-generated)
+├── .env                            # Frontend environment variables
+└── backend/.env                     # Backend environment variables
+```
+
+### Commands Reference
+
+```bash
+# Initial setup (run once)
+./scripts/dev/bootstrap.sh
+
+# Daily development commands
+./scripts/dev/up.sh                  # Normal mode with helpful output
+./scripts/dev/up.sh host             # Linux host networking mode
+docker compose up --build           # Direct Docker command
+docker compose --profile mobile up  # Include ngrok for remote testing
+
+# Service management
+docker compose down                  # Stop all services
+docker compose down --volumes        # Stop and remove data volumes
+docker compose logs frontend         # View frontend logs
+docker compose logs backend          # View backend logs
+docker compose exec frontend npm test    # Run tests in frontend container
+docker compose exec backend python manage.py test  # Run backend tests
+
+# Troubleshooting
+docker system prune -f              # Clean unused Docker resources
+sudo chown -R $USER:$USER .         # Fix file permissions
+```
+
+### Environment Variables
+
+**Frontend (.env):**
+```bash
+# Required for AI features
+EXPO_PUBLIC_OPENAI_API_KEY=your_openai_api_key
+
+# Optional for remote mobile testing
+NGROK_AUTHTOKEN=your_ngrok_auth_token
+```
+
+**Backend (backend/.env):**
+```bash
+# AI Integration
+OPENAI_API_KEY=your_openai_api_key
+
+# Django Configuration
+DEBUG=True
+SECRET_KEY=your_django_secret_key
+ALLOWED_HOSTS=*
+
+# API Settings
+API_TIMEOUT=30
+MAX_RETRIES=3
+CACHE_TIMEOUT=900
 ```
 
 ## Acknowledgments
