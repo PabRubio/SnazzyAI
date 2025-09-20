@@ -23,3 +23,6 @@ node_modules/
 
 # OS specific
 .DS_Store
+
+# Local Claude settings (do not commit machine-specific state)
+.claude/settings.local.json
