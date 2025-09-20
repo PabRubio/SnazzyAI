@@ -8,7 +8,10 @@ const TIMEOUT = 30000; // 30 seconds
 // Backend URL - update this with your ngrok URL when using ngrok
 // IMPORTANT: Use HTTP (not HTTPS) to avoid SSL certificate issues on Android
 // Example: 'http://abc123.ngrok-free.app' (without /api at the end)
-const BACKEND_URL = 'http://192.168.1.34:8000'; // UPDATE THIS WITH HTTP URL!
+// Prefer environment variable (Expo public) with fallback.
+// EXPO_PUBLIC_BACKEND_URL should be defined in .env for dynamic environments (e.g., Docker: http://backend:8000)
+// Fallback remains a local LAN IP placeholder for quick manual testing.
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://192.168.1.34:8000'; // UPDATE THIS WITH HTTP URL IF NO ENV VAR
 
 // Validate API key on import
 try {
@@ -218,7 +221,7 @@ const searchForProducts = async (searchTerms) => {
     const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/search-products/`, {
+      const response = await fetch(`${BACKEND_URL}/search-products/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
