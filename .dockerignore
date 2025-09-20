@@ -118,7 +118,8 @@ LICENSE
 # Development tools
 .taskmaster/
 scripts/
-docker/
+# docker/ (removed so Dockerfiles are included in build context)
+!scripts/docker/frontend-health.sh
 
 # Docker files themselves
 Dockerfile*

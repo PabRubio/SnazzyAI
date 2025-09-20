@@ -1,53 +1,53 @@
-# Frontend Dockerfile for SnazzyAI React Native/Expo App
-# Base: node:18-bullseye for stable React Native support
+# Frontend Dockerfile for SnazzyAI React Native/Expo
+# Uses official Node image for reliability & smaller size
+
 FROM node:18-bullseye
 
-# Build arguments for user management (prevents root-owned files on host)
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 
-# Create non-root user matching host UID/GID
-RUN groupadd -g $GROUP_ID appuser && \
-    useradd -r -u $USER_ID -g appuser appuser
+ENV CHOKIDAR_USEPOLLING=1 \
+    EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0 \
+    EXPO_USE_DEV_SERVER=1 \
+    EXPO_NO_TUNNELING=1
 
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies for React Native/Expo
-RUN apt-get update && apt-get install -y \
-    git \
+# Install any native build deps needed by RN modules (minimal set)
+# Include curl + iproute2 (for ss) used by healthcheck script
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
+    git \
+    curl \
+    iproute2 \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package files first for Docker layer caching
+# Create non-root user (idempotent if already exists)
+RUN set -eux; \
+    group_name="appuser"; \
+    if ! getent group ${GROUP_ID} >/dev/null 2>&1; then groupadd -g ${GROUP_ID} "$group_name"; else group_name=$(getent group ${GROUP_ID} | cut -d: -f1); fi; \
+    if ! id -u ${USER_ID} >/dev/null 2>&1; then useradd -u ${USER_ID} -g "$group_name" -m appuser; fi; \
+    chown -R ${USER_ID}:$(getent group ${GROUP_ID} | cut -d: -f1) /home/appuser || true
+
+WORKDIR /app
+
+# Copy dependency manifests first
 COPY package*.json ./
 
-# Install npm dependencies as root first, then change ownership
-RUN npm ci --only=production=false
+# Install dependencies (ci for clean, reproducible installs)
+RUN npm ci --no-audit --no-fund
 
-# Create node_modules directory and change ownership
-RUN chown -R appuser:appuser /app
+# Copy rest of code
+COPY . ./
 
-# Switch to non-root user
+# Ensure healthcheck script is executable (when coming from bind mount it should be, but for image build layer safety)
+RUN chmod +x scripts/docker/frontend-health.sh || true
+
+# Fix ownership (bind mounts will reflect host permissions)
+RUN chown -R ${USER_ID}:$(getent group ${GROUP_ID} | cut -d: -f1) /app || true
+
 USER appuser
 
-# Copy the rest of the application code
-COPY --chown=appuser:appuser . ./
-
-# Set environment variables for stable hot reload in containers
-ENV CHOKIDAR_USEPOLLING=1
-ENV EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
-ENV EXPO_USE_DEV_SERVER=1
-ENV EXPO_NO_TUNNELING=1
-
-# Expose Expo development server ports
-# 19000: Expo DevTools web interface
-# 19001: Expo bundler/packager
-# 19002: Expo development tools
-# 19006: Expo web server
-# 8081: Metro bundler (React Native)
 EXPOSE 19000 19001 19002 19006 8081
 
-# Default command: Start Expo development server
-# Use --lan to allow connections from same network (physical devices)
+# Start Expo (default script handles args). Can append --host 0.0.0.0 if needed.
 CMD ["npm", "start"]

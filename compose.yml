@@ -2,7 +2,7 @@
 # Supports Ubuntu 22.04 & 24.04 with identical tooling and hot reload
 # Usage: docker compose up --build
 
-version: '3.8'
+version: "3.8"
 
 services:
   # Backend - Django API server
@@ -19,7 +19,7 @@ services:
       # Bind mount for hot reload
       - ./backend:/app/backend
       # Named volume for pip cache (optional performance improvement)
-      - pip_cache:/root/.cache/pip
+      - pip_cache:/home/appuser/.cache/pip
     environment:
       # Load environment variables from both .env files
       - DEBUG=True
@@ -29,11 +29,11 @@ services:
       - backend/.env
     user: "${UID:-1000}:${GID:-1000}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health/"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 20s
 
   # Frontend - React Native/Expo development server
   frontend:
@@ -71,11 +71,11 @@ services:
       - backend
     user: "${UID:-1000}:${GID:-1000}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:19000/"]
+      test: ["CMD-SHELL", "bash scripts/docker/frontend-health.sh"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
 
   # Optional: ngrok for mobile device testing
   # Exposes backend to the internet for testing on physical devices

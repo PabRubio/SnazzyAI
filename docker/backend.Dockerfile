@@ -1,49 +1,51 @@
 # Backend Dockerfile for SnazzyAI Django API
-# Base: python:3.12-slim for compatibility with Ubuntu 22.04 & 24.04
+# Optimized for development: small base image, hot reload, non-root user
+
 FROM python:3.12-slim
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Environment settings
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=0
+
+# Build arguments for user mapping
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+# Install system build/runtime deps (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     git \
     tzdata \
+    libffi-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Build arguments for user management (prevents root-owned files on host)
-ARG USER_ID=1000
-ARG GROUP_ID=1000
+# Create matching user/group (avoid permission issues with bind mounts)
+RUN groupadd -g ${GROUP_ID} appuser && \
+    useradd -u ${USER_ID} -g appuser -m appuser
 
-# Create non-root user matching host UID/GID
-RUN groupadd -g $GROUP_ID appuser && \
-    useradd -r -u $USER_ID -g appuser appuser
-
-# Set working directory
 WORKDIR /app/backend
 
-# Install Python dependencies
-# Copy requirements first for Docker layer caching
+# Leverage layer caching: copy only requirements first
 COPY backend/requirements.txt ./requirements.txt
 
-# Install pip dependencies with cache for faster rebuilds
+# Install Python deps (keep pip cache so pip_cache volume is effective)
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install -r requirements.txt && \
+    pip install watchdog
 
-# Install watchdog for responsive Django auto-reload in containers
-RUN pip install --no-cache-dir watchdog
+# Copy project source
+COPY backend/ ./
 
-# Create directory for app and change ownership
-RUN mkdir -p /app/backend && chown -R appuser:appuser /app
+# Adjust ownership after copy (bind mount will override but keeps image clean)
+RUN chown -R appuser:appuser /app
 
-# Switch to non-root user
 USER appuser
 
-# Copy backend code (this happens after user switch to preserve permissions)
-COPY --chown=appuser:appuser backend/ ./
-
-# Expose Django development server port
 EXPOSE 8000
 
-# Default command for development
-# Run migrations then start development server
+# Run migrations then start dev server (reload handled by Django + watchdog)
 CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
