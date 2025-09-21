@@ -46,7 +46,10 @@ services:
     ports:
       # Minimal port exposure for mobile device Metro bundling
       - "8081:8081"     # Metro bundler (React Native)
-      # Advanced/optional ports (DevTools, web) available via a future profile if needed
+      - "19000:19000"    # Expo manifest / classic dev server UI
+      - "19001:19001"    # Expo websocket (logs, HMR)
+      - "19002:19002"    # Legacy debugger / inspector
+      # Advanced/optional ports (web) available via a future profile if needed
     volumes:
       # Bind mount project root for hot reload
       - .:/app
@@ -64,6 +67,8 @@ services:
       - EXPO_NO_TUNNELING=1
       # Pass through existing API keys from .env
       - EXPO_PUBLIC_OPENAI_API_KEY=${EXPO_PUBLIC_OPENAI_API_KEY}
+      - REACT_NATIVE_PACKAGER_HOSTNAME=${REACT_NATIVE_PACKAGER_HOSTNAME:-}
+      - EXPO_DEV_SERVER_HOST=${EXPO_DEV_SERVER_HOST:-}
     env_file:
       - .env
     depends_on:

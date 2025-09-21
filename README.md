@@ -52,6 +52,13 @@ Check readiness:
 - Metro stuck / stale: `docker compose exec frontend npx expo start -c` to clear cache.
 - Need tunnel: `./scripts/dev/mobile.sh --ngrok` (set `NGROK_AUTHTOKEN`). Use generated HTTPS URL as backend.
 - Android auto launch fails: Ensure emulator/device appears in `adb devices` inside container.
+- Expo Go "Failed to download remote update": The device could not reach the Metro bundle URL. Recent change: we now inject `EXPO_DEV_SERVER_HOST` and `REACT_NATIVE_PACKAGER_HOSTNAME` to force the manifest to advertise your LAN IP.
+  Quick checks:
+  1. Confirm phone and host on same Wi-Fi (no guest isolation / VPN).
+  2. Visit `http://<LAN-IP>:8081/status` in mobile browser (should show `{"status":"running"}`).
+  3. Clear Expo Go cache (force close) & rescan QR.
+  4. If still failing, run `docker compose exec frontend npx expo start --host lan`.
+  5. For Linux, optional: `./scripts/dev/up.sh host` (host networking) then restart mobile script.
 
 Advanced (web, legacy DevTools) now lives in the “Advanced Development” section below.
 

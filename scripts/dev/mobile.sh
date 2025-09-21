@@ -80,11 +80,15 @@ fi
 
 echo "🚀 Mobile-first startup"
 echo "   Host LAN IP: ${HOST_IP:-unknown}"
+# Provide explicit host hints for Expo manifest so device gets reachable IP
+export EXPO_DEV_SERVER_HOST="$HOST_IP"
+export REACT_NATIVE_PACKAGER_HOSTNAME="$HOST_IP"
 echo "   EXPO_PUBLIC_BACKEND_URL=${EXPO_PUBLIC_BACKEND_URL:-unset}"
 echo "   Log follow: $([[ $NO_FOLLOW == false ]] && echo enabled || echo disabled)"
 
 # Start compose (backend + frontend) minimal
-( docker compose $COMPOSE_FILES up --build --remove-orphans ) &
+# Pass through host-related env vars so frontend service sees them
+( EXPO_DEV_SERVER_HOST="$EXPO_DEV_SERVER_HOST" REACT_NATIVE_PACKAGER_HOSTNAME="$REACT_NATIVE_PACKAGER_HOSTNAME" docker compose $COMPOSE_FILES up --build --remove-orphans ) &
 COMPOSE_PID=$!
 
 # Graceful shutdown
