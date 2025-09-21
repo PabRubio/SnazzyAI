@@ -10,8 +10,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=0
 
 # Build arguments for user mapping
-ARG USER_ID=1000
-ARG GROUP_ID=1000
+ARG UID=1000
+ARG GID=1000
 
 # Install system build/runtime deps (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,8 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create matching user/group (avoid permission issues with bind mounts)
-RUN groupadd -g ${GROUP_ID} appuser && \
-    useradd -u ${USER_ID} -g appuser -m appuser
+RUN groupadd -g ${GID} appuser && \
+    useradd -u ${UID} -g appuser -m appuser
 
 WORKDIR /app/backend
 
@@ -37,13 +37,11 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt && \
     pip install watchdog
 
-# Copy project source
-COPY backend/ ./
-
-# Adjust ownership after copy (bind mount will override but keeps image clean)
-RUN chown -R appuser:appuser /app
-
+# Switch to appuser before copying to avoid chown
 USER appuser
+
+# Copy project source (will be owned by appuser)
+COPY --chown=appuser:appuser backend/ ./
 
 EXPOSE 8000
 

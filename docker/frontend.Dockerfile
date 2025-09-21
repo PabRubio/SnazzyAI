@@ -26,15 +26,23 @@ COPY package*.json ./
 # Install dependencies (ci for clean, reproducible installs)
 RUN npm ci --no-audit --no-fund
 
-# Copy rest of code
-COPY . ./
+# Create user matching host UID/GID for proper permissions
+ARG UID=1000
+ARG GID=1000
+RUN if [ "${UID}" != "1001" ]; then \
+      usermod -u ${UID} node && \
+      groupmod -g ${GID} node; \
+    fi
 
-# Ensure healthcheck script is executable (when coming from bind mount it should be, but for image build layer safety)
+# Switch to node user before copying to avoid chown
+USER node
+
+# Copy rest of code (will be owned by node user)
+COPY --chown=node:node . ./
+
+# Ensure healthcheck script is executable
+USER root
 RUN chmod +x scripts/docker/frontend-health.sh || true
-
-# Fix ownership (bind mounts will reflect host permissions)
-RUN chown -R ${USER_ID}:$(getent group ${GROUP_ID} | cut -d: -f1) /app || true
-
 USER node
 
 EXPOSE 19000 19001 19002 19006 8081

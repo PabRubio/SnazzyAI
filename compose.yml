@@ -11,8 +11,8 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
       args:
-        USER_ID: ${UID:-1000}
-        GROUP_ID: ${GID:-1000}
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     ports:
       - "8000:8000"
     volumes:
@@ -41,8 +41,8 @@ services:
       context: .
       dockerfile: docker/frontend.Dockerfile
       args:
-        USER_ID: ${UID:-1000}
-        GROUP_ID: ${GID:-1000}
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     ports:
       # Minimal port exposure for mobile device Metro bundling
       - "8081:8081"     # Metro bundler (React Native)
