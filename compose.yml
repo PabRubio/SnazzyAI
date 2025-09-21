@@ -44,12 +44,9 @@ services:
         USER_ID: ${UID:-1000}
         GROUP_ID: ${GID:-1000}
     ports:
-      # Expo/Metro development ports
-      - "19000:19000"   # Expo DevTools web interface
-      - "19001:19001"   # Expo bundler/packager
-      - "19002:19002"   # Expo development tools
-      - "19006:19006"   # Expo web server
+      # Minimal port exposure for mobile device Metro bundling
       - "8081:8081"     # Metro bundler (React Native)
+      # Advanced/optional ports (DevTools, web) available via a future profile if needed
     volumes:
       # Bind mount project root for hot reload
       - .:/app

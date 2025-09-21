@@ -19,27 +19,30 @@ SnazzyAI is a React Native (Expo) mobile app plus a Django backend. Users snap a
 - Task Master AI workflow integration (optional) for structured development tasks
 
 ---
-## Quick Start (Docker Recommended)
+## Quick Start (Mobile Device)
 ```bash
-# One-time environment prep
+# One-time setup
 ./scripts/dev/bootstrap.sh
 
-# Start services (frontend + backend)
-docker compose up --build
-# or helper script
-default: ./scripts/dev/up.sh
-linux host networking: ./scripts/dev/up.sh host
+# Start backend + Metro (auto-detects LAN IP, prints instructions)
+./scripts/dev/mobile.sh
 
-# Optional: include ngrok tunnel for remote mobile testing
-docker compose --profile mobile up --build
+# (Optional) auto-launch Android if emulator/device connected
+./scripts/dev/mobile.sh --android
+
+# (Optional) expose backend publicly via ngrok
+./scripts/dev/mobile.sh --ngrok
 ```
-Access:
-- Backend API: http://localhost:8000
-- Metro status: http://localhost:8081/status (returns ok when bundler ready)
-- Start web: `docker compose exec frontend npx expo start --web`
-- Start Android emulator/device: `docker compose exec frontend npx expo start --android`
+What you get:
+- Backend API + Metro with only essential port (8081) exposed
+- EXPO_PUBLIC_BACKEND_URL set to your LAN IP automatically
+- Scan QR code in Expo Go from frontend container logs
 
-Expo CLI no longer always serves a legacy DevTools page on port 19000. Use the CLI QR code output in the frontend container logs (or start with the above commands) to load on a physical device.
+Check readiness:
+- Backend: `curl http://<LAN-IP>:8000/api/health/`
+- Metro:   `http://localhost:8081/status` should show `{"status":"running"}`
+
+Advanced (web, legacy DevTools) now lives in the “Advanced Development” section below.
 
 ---
 ## Native (Alternative) Development
@@ -179,6 +182,17 @@ Docker Compose defines:
 Metro availability is the primary readiness indicator; DevTools on 19000 may not appear in newer Expo CLI versions.
 
 ---
+## Advanced Development
+For desktop web preview, legacy DevTools UI, or host networking:
+```bash
+# Full port mapping & optional web
+./scripts/dev/up.sh          # standard
+./scripts/dev/up.sh host     # Linux host networking
+
+docker compose exec frontend npx expo start --web   # launch web
+```
+Use these when you specifically need the web build or older DevTools behavior.
+
 ## Development Workflow
 1. Start environment (`docker compose up --build`).
 2. Implement feature / fix.
