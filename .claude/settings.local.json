@@ -14,7 +14,12 @@
       "Bash(curl:*)",
       "Bash(awk:*)",
       "Bash(./scripts/dev/mobile.sh:*)",
-      "Bash(export:*)"
+      "Bash(export:*)",
+      "Read(//home/adrian/Downloads/**)",
+      "Bash(npm install)",
+      "Bash(cat:*)",
+      "Bash(docker ps:*)",
+      "Read(//home/adrian/**)"
     ]
   },
   "enabledMcpjsonServers": [
