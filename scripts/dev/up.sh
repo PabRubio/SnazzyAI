@@ -40,10 +40,11 @@ EXAMPLES:
 
 PORTS (normal mode):
     8000     Backend Django API
-    19000    Expo DevTools (open in browser)
+    8081     Metro bundler status (/status)
+    19000    (Legacy) Expo DevTools (may not be served)
     19001    Expo bundler/packager
     19002    Expo development tools
-    8081     Metro bundler
+    19006    Expo web (if started with --web)
 
 ACCESS:
     Backend API:       http://localhost:8000
@@ -126,9 +127,10 @@ echo ""
 echo "🎉 SnazzyAI development environment is starting!"
 echo ""
 echo "📱 ACCESS YOUR APP:"
-echo "   • Backend API:       http://localhost:8000"
-echo "   • Expo DevTools:     http://localhost:19000"
-echo "   • Frontend (web):    http://localhost:19006"
+echo "   • Backend API:        http://localhost:8000"
+echo "   • Metro status:       http://localhost:8081/status (ok when ready)"
+echo "   • Start web (manual): docker compose exec frontend npx expo start --web"
+echo "   • Start Android:      docker compose exec frontend npx expo start --android"
 echo ""
 echo "📋 DEVELOPMENT TIPS:"
 
@@ -137,9 +139,9 @@ if [[ "$1" == "host" ]]; then
     echo "   • Device discovery: Physical devices should connect more reliably"
     echo "   • Backend URL:     http://localhost:8000 (not via Docker bridge)"
 else
-    echo "   • Port mapping: Services accessible via localhost ports"
-    echo "   • Mobile devices: Scan QR code from Expo DevTools"
-    echo "   • If device issues: Try ./scripts/dev/up.sh host (Linux only)"
+echo "   • Port mapping: Services accessible via localhost ports"
+echo "   • Mobile devices: QR code appears in container logs (DevTools page optional)"
+echo "   • If device issues: Try ./scripts/dev/up.sh host (Linux only)"
 fi
 
 echo ""
@@ -148,7 +150,7 @@ echo "   • Frontend: Edit any .js/.jsx file to trigger reload"
 echo "   • Backend:  Django auto-reloads on .py file changes"
 echo ""
 echo "🔧 ENVIRONMENT:"
-echo "   • Backend URL:  EXPO_PUBLIC_BACKEND_URL=http://backend:8000 (internal)"
+echo "   • Backend URL:  EXPO_PUBLIC_BACKEND_URL=http://backend:8000 (internal, /api/* routes)"
 echo "   • API Keys:     Loaded from .env and backend/.env"
 echo "   • File perms:   Running as UID=$UID, GID=$GID"
 echo ""

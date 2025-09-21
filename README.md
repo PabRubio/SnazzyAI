@@ -10,11 +10,11 @@ SnazzyAI is a React Native (Expo) mobile app plus a Django backend. Users snap a
 ## Core Features
 - Camera capture (Expo Camera) with preview & retry
 - GPT‑4o image understanding → structured JSON (outfitName, shortDescription, rating, isValidPhoto, searchTerms)
-- Real product lookup via backend `/search-products/` (OpenAI Responses API with `web_search` tool)
+- Real product lookup via backend `/api/search-products/` (OpenAI Responses API with `web_search` tool)
 - Structured product objects: name, brand, description, price, imageUrl, purchaseUrl
 - Robust OpenAI client layer: request/response logging (dev), retry & exponential backoff on transient failures
 - Dockerized dev environment (frontend + backend + optional ngrok) with healthchecks:
-  - Backend: HTTP `/health/`
+  - Backend: HTTP `/api/health/`
   - Frontend: Script-based Metro/Expo readiness check (`scripts/docker/frontend-health.sh`)
 - Task Master AI workflow integration (optional) for structured development tasks
 
@@ -35,10 +35,11 @@ docker compose --profile mobile up --build
 ```
 Access:
 - Backend API: http://localhost:8000
-- Expo DevTools: http://localhost:19000
-- Web preview (Expo web): http://localhost:19006
+- Metro status: http://localhost:8081/status (returns ok when bundler ready)
+- Start web: `docker compose exec frontend npx expo start --web`
+- Start Android emulator/device: `docker compose exec frontend npx expo start --android`
 
-Open the DevTools page, scan the QR code with the Expo Go app to load on a physical device.
+Expo CLI no longer always serves a legacy DevTools page on port 19000. Use the CLI QR code output in the frontend container logs (or start with the above commands) to load on a physical device.
 
 ---
 ## Native (Alternative) Development
@@ -69,7 +70,7 @@ SnazzyAI/
 ├ backend/
 │  ├ backend/                # Django project settings
 │  └ server/                 # Django app (views, urls)
-│     ├ views.py             # /health/ + /search-products/
+│     ├ views.py             # /api/health/ + /api/search-products/
 │     └ urls.py              # URL patterns
 ├ docker/                    # Dockerfiles
 ├ scripts/                   # Dev & health scripts
@@ -84,7 +85,7 @@ SnazzyAI/
 1. User captures photo in app.
 2. App encodes image (base64) and sends to OpenAI Chat Completions (`gpt-4o`) with a structured system prompt.
 3. OpenAI returns JSON-like content; client parses & validates (outfit meta + searchTerms).
-4. Client calls backend `POST /search-products/` with `{ "searchTerms": "..." }`.
+4. Client calls backend `POST /api/search-products/` with `{ "searchTerms": "..." }`.
 5. Backend calls OpenAI Responses API (`model: gpt-5`, `tools: [web_search]`) instructing it to return exactly 5 product JSON objects.
 6. Backend returns `{ products: [...] }` to frontend for display.
 
@@ -92,10 +93,10 @@ SnazzyAI/
 ## API Endpoints (Backend)
 Base (development): `http://localhost:8000`
 
-| Method | Path              | Description                  | Request Body Example |
-|--------|-------------------|------------------------------|----------------------|
-| GET    | /health/          | Health probe (status ok)     | n/a                  |
-| POST   | /search-products/ | Product web search via OpenAI | `{ "searchTerms": "white linen shirt men's summer" }` |
+| Method | Path                 | Description                   | Request Body Example |
+|--------|----------------------|-------------------------------|----------------------|
+| GET    | /api/health/         | Health probe (status ok)      | n/a                  |
+| POST   | /api/search-products/| Product web search via OpenAI | `{ "searchTerms": "white linen shirt men's summer" }` |
 
 Response (success):
 ```json
@@ -116,7 +117,7 @@ If lookup fails or returns nothing, `products` will be an empty array. No local 
 
 Curl example:
 ```bash
-curl -X POST http://localhost:8000/search-products/ \
+curl -X POST http://localhost:8000/api/search-products/ \
   -H 'Content-Type: application/json' \
   -d '{"searchTerms": "navy polo shirt slim fit"}'
 ```
@@ -138,15 +139,16 @@ Returns:
 
 ---
 ## Backend URL Configuration
-Currently the frontend service module hard-codes:
+Frontend resolves backend automatically:
 ```js
-const BACKEND_URL = 'http://<your-local-ip>:8000';
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://<your-local-ip>:8000'
 ```
-Update this when:
-- Using Docker on the same machine: (inside container) `http://backend:8000` (already provided to other containers via `EXPO_PUBLIC_BACKEND_URL`). For device testing through host, keep your LAN IP.
-- Using ngrok: set to your tunnel, e.g. `http://abc123.ngrok-free.app` (note: use HTTP if Android has SSL trust issues with self-signed cert variants).
+Update `.env` (or Docker env) rather than editing code when possible.
+- Docker: `EXPO_PUBLIC_BACKEND_URL=http://backend:8000` is injected for service-to-service calls.
+- Physical device via LAN: ensure the value is your machine's LAN IP (e.g. `http://192.168.1.34:8000`).
+- ngrok: set to your tunnel (e.g. `http://abc123.ngrok-free.app`). Use HTTP if Android has SSL trust issues.
 
-Future improvement suggestion: read `process.env.EXPO_PUBLIC_BACKEND_URL` in `openaiService.js` instead of manual edit.
+All frontend calls expect API routes under `/api/` prefix (e.g. `/api/search-products/`).
 
 ---
 ## Environment Variables
@@ -168,13 +170,13 @@ ALLOWED_HOSTS=*
 ---
 ## Healthchecks
 Docker Compose defines:
-- Backend: `curl http://localhost:8000/health/` (simple JSON `{"status": "ok"}`)
+- Backend: `curl http://localhost:8000/api/health/` (simple JSON `{"status": "ok"}`)
 - Frontend: `scripts/docker/frontend-health.sh` which passes if ANY of these conditions is true:
-  1. Metro status endpoint (19000) returns OK
-  2. Metro JS bundle port (8081) responding
-  3. Expo process detected + expected ports open
+  1. Metro status endpoint (8081) returns OK (`/status`)
+  2. Legacy DevTools root (19000) responds (if served by current CLI)
+  3. Expo process detected + either port 8081 or 19000 listening
 
-This prevents premature "healthy" status before Metro is fully serving bundles.
+Metro availability is the primary readiness indicator; DevTools on 19000 may not appear in newer Expo CLI versions.
 
 ---
 ## Development Workflow
@@ -193,7 +195,7 @@ docker compose exec frontend npx expo doctor
 docker compose exec backend python manage.py test
 
 # Backend health
-curl -fsS http://localhost:8000/health/
+curl -fsS http://localhost:8000/api/health/
 ```
 
 ---
@@ -207,7 +209,7 @@ curl -fsS http://localhost:8000/health/
 - No persistence or history of analyses
 - No rate limiting / caching layer yet (despite earlier placeholder notes)
 - Product search depends on OpenAI `web_search` quality & latency (can be slow)
-- Hard‑coded backend URL in `openaiService.js`
+- Requires correct `EXPO_PUBLIC_BACKEND_URL` when changing environments
 - Static fallback product data is unused (kept for potential offline mode experiment)
 
 ---

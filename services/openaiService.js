@@ -221,7 +221,7 @@ const searchForProducts = async (searchTerms) => {
     const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
     try {
-      const response = await fetch(`${BACKEND_URL}/search-products/`, {
+      const response = await fetch(`${BACKEND_URL}/api/search-products/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
