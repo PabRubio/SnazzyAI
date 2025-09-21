@@ -14,6 +14,92 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 OPENAI_API_URL = 'https://api.openai.com/v1'
 
 @api_view(['POST'])
+def validate_and_update_style(request):
+    """
+    Validate if a style name is fashion-related and generate new search terms
+    """
+    try:
+        new_style = request.data.get('newStyle', '').strip()
+
+        if not new_style:
+            return Response({'isValid': False, 'message': 'Style cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Use OpenAI to validate and generate search terms
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {OPENAI_API_KEY}'
+        }
+
+        validation_request = {
+            'model': 'gpt-4o',
+            'max_tokens': 200,
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': """You are a fashion expert. Determine if the given text is a valid fashion style name.
+
+Invalid examples: paper, rock, table, computer, nonsense words
+Valid examples: Streetwear Chic, Business Casual, Vintage Retro, Sporty Elegant
+
+Return JSON:
+{
+  "isValid": boolean,
+  "message": "explanation if invalid or confirmation if valid",
+  "searchTerms": "specific product search terms if valid (5-7 words)"
+}"""
+                },
+                {
+                    'role': 'user',
+                    'content': f'Is "{new_style}" a valid fashion style? If yes, generate search terms for complementary items.'
+                }
+            ]
+        }
+
+        print(f'Validating style: {new_style}')
+
+        response = requests.post(
+            f'{OPENAI_API_URL}/chat/completions',
+            json=validation_request,
+            headers=headers,
+            timeout=10
+        )
+
+        if response.status_code != 200:
+            print(f'OpenAI validation error: {response.status_code}')
+            return Response({
+                'isValid': False,
+                'message': 'Failed to validate style'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        response_data = response.json()
+        content = response_data['choices'][0]['message']['content']
+
+        # Parse the JSON response
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', content)
+        if json_match:
+            validation_result = json.loads(json_match.group())
+            print(f'Validation result: {validation_result}')
+
+            return Response({
+                'isValid': validation_result.get('isValid', False),
+                'message': validation_result.get('message', ''),
+                'searchTerms': validation_result.get('searchTerms', '') if validation_result.get('isValid') else None
+            })
+
+        return Response({
+            'isValid': False,
+            'message': 'Could not validate style'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except Exception as e:
+        print(f'Style validation error: {str(e)}')
+        return Response({
+            'isValid': False,
+            'message': 'Validation service error'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
 def search_products(request):
     """
     Search for real products using OpenAI Responses API with web search

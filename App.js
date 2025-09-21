@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking, TextInput } from 'react-native';
 import { StatusBar as RNStatusBar } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { analyzeOutfit } from './services/openaiService';
+import { analyzeOutfit, updateOutfitStyle } from './services/openaiService';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -36,10 +36,20 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [showError, setShowError] = useState(false);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState(null);
+  const [isEditingStyle, setIsEditingStyle] = useState(false);
+  const [editedStyleValue, setEditedStyleValue] = useState('');
+  const [originalStyleValue, setOriginalStyleValue] = useState('');
+  const [isUpdatingStyle, setIsUpdatingStyle] = useState(false);
   const cameraRef = useRef(null);
   const captureTimerRef = useRef(null);
   const hapticIntervalRef = useRef(null);
   const delayedCaptureRef = useRef(null);
+  const styleInputRef = useRef(null);
+
+  // Animation values for style editor
+  const editButtonOpacity = useSharedValue(1);
+  const editButtonScale = useSharedValue(1);
+  const inputOpacity = useSharedValue(0);
   
   // BottomSheet setup
   const bottomSheetRef = useRef(null);
@@ -55,6 +65,116 @@ export default function App() {
       setIsAnalyzing(false);
     }
   }, []);
+
+  // Handle style edit button press
+  const handleEditStylePress = useCallback(() => {
+    // Animate button out
+    editButtonOpacity.value = withTiming(0, { duration: 150 });
+    editButtonScale.value = withTiming(0.8, { duration: 150 });
+
+    // Animate input in
+    inputOpacity.value = withTiming(1, { duration: 200 });
+
+    setIsEditingStyle(true);
+    setEditedStyleValue(analysisResult?.outfitName || '');
+    setOriginalStyleValue(analysisResult?.outfitName || '');
+    // Small haptic feedback
+    safeHaptic(() => Haptics.selectionAsync());
+    // Focus the input after animations
+    setTimeout(() => {
+      styleInputRef.current?.focus();
+    }, 200);
+  }, [analysisResult, editButtonOpacity, editButtonScale, inputOpacity]);
+
+  // Handle style edit cancel
+  const handleCancelStyleEdit = useCallback(() => {
+    // Animate input out
+    inputOpacity.value = withTiming(0, { duration: 150 });
+
+    // Animate button back in
+    editButtonOpacity.value = withTiming(1, { duration: 200 });
+    editButtonScale.value = withTiming(1, { duration: 200 });
+
+    setTimeout(() => {
+      setIsEditingStyle(false);
+      setEditedStyleValue('');
+      setOriginalStyleValue('');
+    }, 150);
+  }, [editButtonOpacity, editButtonScale, inputOpacity]);
+
+  // Handle style edit submit
+  const handleSubmitStyleEdit = useCallback(async () => {
+    const trimmedStyle = editedStyleValue.trim();
+
+    if (!trimmedStyle) {
+      // If empty, just cancel
+      handleCancelStyleEdit();
+      return;
+    }
+
+    if (trimmedStyle === originalStyleValue) {
+      // No change, just close editor
+      handleCancelStyleEdit();
+      return;
+    }
+
+    setIsUpdatingStyle(true);
+
+    try {
+      // Get current search terms from analysis result
+      const currentSearchTerms = analysisResult?.searchTerms || '';
+
+      // Call the style update service
+      const result = await updateOutfitStyle(trimmedStyle, currentSearchTerms);
+
+      if (result.success) {
+        // Update the analysis result with new style and products
+        setAnalysisResult(prevResult => ({
+          ...prevResult,
+          outfitName: result.newStyle,
+          recommendations: result.products && result.products.length > 0
+            ? result.products.slice(0, 5) // Ensure max 5 products
+            : prevResult.recommendations // Keep old products if none found
+        }));
+
+        // Success haptic feedback
+        await safeHaptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+
+        // Show success message if products were found
+        if (result.products && result.products.length > 0) {
+          setErrorMessage(`Style updated! Found ${result.products.length} matching items.`);
+          setShowError(true);
+        } else if (result.message) {
+          setErrorMessage(result.message);
+          setShowError(true);
+        }
+
+        // Close the editor
+        handleCancelStyleEdit();
+      } else {
+        // Style is invalid or error occurred
+        await safeHaptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
+
+        setErrorMessage(result.error || 'Invalid style name. Please try a fashion-related style.');
+        setShowError(true);
+
+        // Don't close editor, let user try again
+        // Just select all text for easy re-typing
+        setTimeout(() => {
+          styleInputRef.current?.focus();
+          styleInputRef.current?.setNativeProps({ selection: { start: 0, end: trimmedStyle.length } });
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error updating style:', error);
+      setErrorMessage('Failed to update style. Please try again.');
+      setShowError(true);
+
+      await safeHaptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
+    } finally {
+      setIsUpdatingStyle(false);
+    }
+  }, [editedStyleValue, originalStyleValue, analysisResult, handleCancelStyleEdit]);
 
   // Handle opening purchase URLs in browser
   const handleOpenPurchaseUrl = useCallback(async (url) => {
@@ -355,6 +475,21 @@ export default function App() {
     };
   });
 
+  // Edit button animated styles
+  const editButtonAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: editButtonOpacity.value,
+      transform: [{ scale: editButtonScale.value }],
+    };
+  });
+
+  // Input animated style
+  const inputAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: inputOpacity.value,
+    };
+  });
+
   if (!permission) {
     return (
       <View style={styles.container}>
@@ -477,7 +612,48 @@ export default function App() {
             ) : analysisResult ? (
               <View style={styles.resultContent}>
                 <View style={styles.resultHeader}>
-                  <Text style={styles.outfitName}>{analysisResult.outfitName}</Text>
+                  <View style={styles.outfitNameContainer}>
+                    {isEditingStyle ? (
+                      <Animated.View style={[styles.inputWrapper, inputAnimatedStyle]}>
+                        <TextInput
+                          ref={styleInputRef}
+                          style={styles.styleInput}
+                          value={editedStyleValue}
+                          onChangeText={setEditedStyleValue}
+                          onSubmitEditing={handleSubmitStyleEdit}
+                          onBlur={handleCancelStyleEdit}
+                          placeholder="Enter style name"
+                          placeholderTextColor="#999"
+                          autoCapitalize="words"
+                          returnKeyType="done"
+                          editable={!isUpdatingStyle}
+                          selectTextOnFocus
+                          maxLength={30}
+                        />
+                      </Animated.View>
+                    ) : (
+                      <>
+                        <Text style={styles.outfitName}>{analysisResult.outfitName}</Text>
+                        <Animated.View style={[editButtonAnimatedStyle]}>
+                          <TouchableOpacity
+                            style={styles.editButton}
+                            onPress={handleEditStylePress}
+                            activeOpacity={0.7}
+                            disabled={isUpdatingStyle}
+                          >
+                            <Text style={styles.editButtonText}>✏️</Text>
+                          </TouchableOpacity>
+                        </Animated.View>
+                      </>
+                    )}
+                    {isUpdatingStyle && (
+                      <ActivityIndicator
+                        size="small"
+                        color="#007AFF"
+                        style={styles.styleUpdateLoader}
+                      />
+                    )}
+                  </View>
                   <Text style={styles.rating}>⭐ {analysisResult.rating}/10</Text>
                   <Text style={styles.shortDescription}>{analysisResult.shortDescription}</Text>
                 </View>
@@ -618,11 +794,42 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 0,
   },
+  outfitNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    minHeight: 30,
+  },
   outfitName: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    flex: 1,
+  },
+  editButton: {
+    marginLeft: 8,
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  editButtonText: {
+    fontSize: 16,
+  },
+  inputWrapper: {
+    flex: 1,
+    marginRight: 8,
+  },
+  styleInput: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    borderBottomWidth: 2,
+    borderBottomColor: '#007AFF',
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+  },
+  styleUpdateLoader: {
+    marginLeft: 8,
   },
   rating: {
     fontSize: 16,

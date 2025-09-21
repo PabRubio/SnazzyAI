@@ -279,6 +279,83 @@ const searchForProducts = async (searchTerms) => {
 };
 
 // Function to analyze outfit from base64 image with retry logic
+// Function to update outfit style with validation
+export const updateOutfitStyle = async (newStyle, currentSearchTerms) => {
+  try {
+    console.log('Validating and updating style:', newStyle);
+
+    // Step 1: Validate the style with backend
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+    const validationResponse = await fetch(`${BACKEND_URL}/api/validate-and-update-style/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '69420',
+        'User-Agent': 'SnazzyApp/1.0'
+      },
+      body: JSON.stringify({ newStyle }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!validationResponse.ok) {
+      const errorText = await validationResponse.text();
+      console.error('Style validation error:', errorText);
+      return {
+        success: false,
+        error: 'Failed to validate style',
+        originalSearchTerms: currentSearchTerms
+      };
+    }
+
+    const validationData = await validationResponse.json();
+    console.log('Validation result:', validationData);
+
+    if (!validationData.isValid) {
+      // Style is not valid
+      return {
+        success: false,
+        error: validationData.message || 'Invalid style name',
+        originalSearchTerms: currentSearchTerms
+      };
+    }
+
+    // Step 2: If valid, search for new products with the generated search terms
+    const searchTerms = validationData.searchTerms || newStyle;
+    console.log('Searching for products with new style terms:', searchTerms);
+
+    const products = await searchForProducts(searchTerms);
+
+    if (products && products.length > 0) {
+      return {
+        success: true,
+        newStyle: newStyle,
+        products: products,
+        message: validationData.message
+      };
+    } else {
+      // No products found, but style was valid
+      return {
+        success: true,
+        newStyle: newStyle,
+        products: [],
+        message: 'Style updated but no matching products found'
+      };
+    }
+
+  } catch (error) {
+    console.error('Style update error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to update style',
+      originalSearchTerms: currentSearchTerms
+    };
+  }
+};
+
 export const analyzeOutfit = async (base64Image, maxRetries = 3) => {
   let lastError;
   

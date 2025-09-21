@@ -19,7 +19,8 @@
       "Bash(npm install)",
       "Bash(cat:*)",
       "Bash(docker ps:*)",
-      "Read(//home/adrian/**)"
+      "Read(//home/adrian/**)",
+      "Bash(git push:*)"
     ]
   },
   "enabledMcpjsonServers": [
