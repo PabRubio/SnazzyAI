@@ -9,7 +9,12 @@
       "Bash(node:*)",
       "Bash(npm --version)",
       "Bash(git checkout:*)",
-      "Bash(docker pull:*)"
+      "Bash(docker pull:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(awk:*)",
+      "Bash(./scripts/dev/mobile.sh:*)",
+      "Bash(export:*)"
     ]
   },
   "enabledMcpjsonServers": [
