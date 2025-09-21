@@ -42,6 +42,17 @@ Check readiness:
 - Backend: `curl http://<LAN-IP>:8000/api/health/`
 - Metro:   `http://localhost:8081/status` should show `{"status":"running"}`
 
+### Mobile Troubleshooting
+- Readonly UID message (older script): Regenerate `.env.docker` via `./scripts/dev/bootstrap.sh`.
+- No QR code: Now the QR should stream directly because the frontend service runs with a TTY. If not, run `docker compose logs -f frontend`.
+- Wrong backend URL on device: Ensure `EXPO_PUBLIC_BACKEND_URL` shows a LAN IP (printed at startup). Override: `export EXPO_PUBLIC_BACKEND_URL=http://<LAN-IP>:8000` before running script.
+- LAN IP not detected: Manually set `EXPO_PUBLIC_BACKEND_URL` then rerun. Verify device can reach `http://<LAN-IP>:8000/api/health/`.
+- 404 /health/: Use `/api/health/` (all endpoints under `/api/`).
+- Product list empty: OpenAI web search may return nothing; retry or adjust lighting / photo clarity.
+- Metro stuck / stale: `docker compose exec frontend npx expo start -c` to clear cache.
+- Need tunnel: `./scripts/dev/mobile.sh --ngrok` (set `NGROK_AUTHTOKEN`). Use generated HTTPS URL as backend.
+- Android auto launch fails: Ensure emulator/device appears in `adb devices` inside container.
+
 Advanced (web, legacy DevTools) now lives in the “Advanced Development” section below.
 
 ---

@@ -11,10 +11,12 @@ set -euo pipefail
 
 ANDROID_FLAG=false
 NGROK_FLAG=false
+NO_FOLLOW=false
 for arg in "$@"; do
   case "$arg" in
     --android) ANDROID_FLAG=true ; shift ;;
     --ngrok) NGROK_FLAG=true ; shift ;;
+    --no-follow) NO_FOLLOW=true ; shift ;;
     -h|--help)
       cat <<'EOF'
 SnazzyAI Mobile Development
@@ -22,16 +24,17 @@ SnazzyAI Mobile Development
 Purpose: Fast path to running the app on a physical mobile device.
 
 USAGE:
-  ./scripts/dev/mobile.sh [--android] [--ngrok]
+  ./scripts/dev/mobile.sh [--android] [--ngrok] [--no-follow]
 
 OPTIONS:
-  --android   Attempt to start Expo with Android automatically (emulator or connected device)
-  --ngrok     Start ngrok tunnel (backend) for off-LAN device testing (needs NGROK_AUTHTOKEN)
+  --android     Attempt to start Expo with Android automatically (emulator or connected device)
+  --ngrok       Start ngrok tunnel (backend) for off-LAN device testing (needs NGROK_AUTHTOKEN)
+  --no-follow   Do not auto-follow frontend logs (manual `docker compose logs -f frontend`)
 
 BEHAVIOR:
   - Detects host LAN IP and exports EXPO_PUBLIC_BACKEND_URL so device points correctly
   - Starts docker compose (backend + minimal Metro port 8081 only)
-  - Prints QR code instructions (Expo CLI output appears in logs)
+  - Auto-follows frontend logs to display Expo QR (unless --no-follow)
   - Shows health & common troubleshooting steps
 EOF
       exit 0
@@ -76,8 +79,9 @@ if $NGROK_FLAG; then
 fi
 
 echo "🚀 Mobile-first startup"
-echo "   Host LAN IP: ${HOST_IP:-unknown}" 
-echo "   EXPO_PUBLIC_BACKEND_URL=${EXPO_PUBLIC_BACKEND_URL:-unset}" 
+echo "   Host LAN IP: ${HOST_IP:-unknown}"
+echo "   EXPO_PUBLIC_BACKEND_URL=${EXPO_PUBLIC_BACKEND_URL:-unset}"
+echo "   Log follow: $([[ $NO_FOLLOW == false ]] && echo enabled || echo disabled)"
 
 # Start compose (backend + frontend) minimal
 ( docker compose $COMPOSE_FILES up --build --remove-orphans ) &
@@ -86,6 +90,7 @@ COMPOSE_PID=$!
 # Graceful shutdown
 cleanup() {
   echo "\n🛑 Shutting down..."
+  if [[ -n "${LOG_FOLLOW_PID:-}" ]]; then kill "$LOG_FOLLOW_PID" 2>/dev/null || true; fi
   docker compose $COMPOSE_FILES down
   exit 0
 }
@@ -93,6 +98,13 @@ trap cleanup SIGINT SIGTERM
 
 # Wait a bit for logs
 sleep 6
+
+if [[ $NO_FOLLOW == false ]]; then
+  echo "--- ⏱  Following frontend logs for Expo QR (Ctrl+C to stop following, environment keeps running) ---" 
+  # Follow logs in background to still show summary below if needed
+  docker compose logs -f frontend &
+  LOG_FOLLOW_PID=$!
+fi
 
 cat <<EOF
 📱 SnazzyAI Mobile Dev Environment
