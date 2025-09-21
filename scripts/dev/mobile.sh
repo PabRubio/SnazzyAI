@@ -44,10 +44,19 @@ if [ ! -f .env.docker ]; then
   exit 1
 fi
 
-# Load UID/GID for permissions
-while IFS='=' read -r k v; do
-  case "$k" in UID|GID) export "$k"="$v" ;; esac
-done < <(grep -E '^(UID|GID)=' .env.docker)
+# Load UID/GID for permissions (avoid exporting readonly UID/GID in bash)
+if [ -f .env.docker ]; then
+  while IFS='=' read -r key value; do
+    case $key in
+      UID|GID)
+        # Only export if variable not readonly (bash defines UID as readonly)
+        if ! (readonly -p 2>/dev/null | grep -q " $key="); then
+          export "$key"="${value}"
+        fi
+        ;;
+    esac
+  done < <(grep -E '^(UID|GID)=' .env.docker)
+fi
 
 # Detect first non-loopback IPv4 (best-effort)
 HOST_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++){if($i=="src"){print $(i+1);exit}}}')
