@@ -26,3 +26,6 @@ node_modules/
 
 # Local Claude settings (do not commit machine-specific state)
 .claude/settings.local.json
+
+# Expo local state (should not be committed)
+.expo/
