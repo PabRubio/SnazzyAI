@@ -65,13 +65,22 @@ if [ ! -f .env.docker ]; then
     exit 1
 fi
 
-# Load user ID/GID for container permissions
-set -a  # Automatically export variables
-source .env.docker
-set +a
+# Load user ID/GID for container permissions safely (avoid readonly var errors)
+if [ -f .env.docker ]; then
+  while IFS='=' read -r key value; do
+    case $key in
+      UID|GID)
+        # Only export if variable not already readonly in environment
+        if ! (readonly -p 2>/dev/null | grep -q " $key="); then
+          export "$key"="${value}"
+        fi
+        ;;
+    esac
+  done < <(grep -E '^(UID|GID)=' .env.docker)
+fi
 
 echo "🚀 Starting SnazzyAI development environment..."
-echo "📋 Using UID=$UID, GID=$GID for container permissions"
+echo "📋 Using UID=${UID:-unknown}, GID=${GID:-unknown} for container permissions"
 
 # Determine compose files based on argument
 if [[ "$1" == "host" ]]; then
