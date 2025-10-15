@@ -33,7 +33,7 @@ Focus on finding actual products from retailers like Amazon, Nordstrom, ASOS, Ni
 - Direct product page URLs
 - Product images
 
-Return ONLY a JSON array with exactly 5 products in this format:
+Return ONLY a JSON array with exactly 5 products in this format (do not ask for clarification):
 [
   {{
     "name": "exact product name",
@@ -94,13 +94,19 @@ Return ONLY a JSON array with exactly 5 products in this format:
         
         # Extract JSON array from content
         import re
-        json_match = re.search(r'\[[\s\S]*\]', content)
+        # Find the first complete JSON array, stopping at the closing ]
+        json_match = re.search(r'\[\s*\{[\s\S]*?\}\s*\]', content)
         if json_match:
-            products = json.loads(json_match.group())
-            print(f'Parsed products: {products}')
-            
-            # Return products directly - NO FALLBACKS, NO PLACEHOLDERS
-            return Response({'products': products})
+            try:
+                products = json.loads(json_match.group())
+                print(f'Parsed products: {products}')
+
+                # Return products directly - NO FALLBACKS, NO PLACEHOLDERS
+                return Response({'products': products})
+            except json.JSONDecodeError as e:
+                print(f'JSON decode error: {e}')
+                print(f'Attempted to parse: {json_match.group()[:200]}...')
+                return Response({'products': []})
         
         print('No products found in response')
         return Response({'products': []})

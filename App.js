@@ -11,6 +11,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import ErrorBanner from './components/ErrorBanner';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 const BUTTON_SIZE = 60;
@@ -36,6 +37,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [showError, setShowError] = useState(false);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState(null);
+  const [favoriteItems, setFavoriteItems] = useState(new Set());
   const cameraRef = useRef(null);
   const captureTimerRef = useRef(null);
   const hapticIntervalRef = useRef(null);
@@ -68,20 +70,22 @@ export default function App() {
     }
 
     try {
-      // Validate URL can be opened
-      const canOpen = await Linking.canOpenURL(url);
-      
-      if (canOpen) {
-        // Haptic feedback on tap
-        await safeHaptic(() => Haptics.selectionAsync());
-        await Linking.openURL(url);
-      } else {
+      // Basic URL validation
+      const isValidUrl = url.startsWith('http://') || url.startsWith('https://');
+
+      if (!isValidUrl) {
         Alert.alert(
           'Invalid Link',
           'The purchase link appears to be invalid.',
           [{ text: 'OK' }]
         );
+        return;
       }
+
+      // Haptic feedback on tap
+      await safeHaptic(() => Haptics.selectionAsync());
+      // Open URL directly - it will throw if it truly can't open
+      await Linking.openURL(url);
     } catch (error) {
       console.error('Error opening URL:', error);
       Alert.alert(
@@ -90,6 +94,20 @@ export default function App() {
         [{ text: 'OK' }]
       );
     }
+  }, []);
+
+  // Handle toggling favorite status
+  const handleToggleFavorite = useCallback(async (itemId) => {
+    await safeHaptic(() => Haptics.selectionAsync());
+    setFavoriteItems(prevFavorites => {
+      const newFavorites = new Set(prevFavorites);
+      if (newFavorites.has(itemId)) {
+        newFavorites.delete(itemId);
+      } else {
+        newFavorites.add(itemId);
+      }
+      return newFavorites;
+    });
   }, []);
 
   // Animation values
@@ -483,28 +501,45 @@ export default function App() {
                 </View>
                 <View style={styles.recommendationsContainer}>
                   <Text style={styles.recommendationsTitle}>Recommended Items</Text>
-                  {analysisResult.recommendations.map((item, index) => (
-                    <TouchableOpacity 
-                      key={`rec-${index}`}
-                      style={[styles.recommendationCard, index < analysisResult.recommendations.length - 1 && { marginBottom: 12 }]} 
-                      activeOpacity={0.8}
-                      onPress={() => handleOpenPurchaseUrl(item.purchaseUrl)}
-                    >
-                      <Image 
-                        source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
-                        style={styles.recommendationImage}
-                        resizeMode="cover"
-                      />
-                      <View style={styles.recommendationContent}>
-                        <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
-                        <Text style={styles.recommendationBrand}>{item.brand}</Text>
-                        <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
-                          {item.description}
-                        </Text>
-                        <Text style={styles.recommendationPrice}>{item.price}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                  {analysisResult.recommendations.map((item, index) => {
+                    const itemId = `${analysisResult.outfitName}-${index}`;
+                    const isFavorite = favoriteItems.has(itemId);
+                    return (
+                      <TouchableOpacity
+                        key={`rec-${index}`}
+                        style={[styles.recommendationCard, index < analysisResult.recommendations.length - 1 && { marginBottom: 12 }]}
+                        activeOpacity={0.8}
+                        onPress={() => handleOpenPurchaseUrl(item.purchaseUrl)}
+                      >
+                        <View style={styles.recommendationImageContainer}>
+                          <Image
+                            source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
+                            style={styles.recommendationImage}
+                            resizeMode="cover"
+                          />
+                          <TouchableOpacity
+                            style={styles.heartButton}
+                            onPress={() => handleToggleFavorite(itemId)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name={isFavorite ? 'heart' : 'heart-outline'}
+                              size={24}
+                              color={isFavorite ? '#FF3B30' : '#999'}
+                            />
+                          </TouchableOpacity>
+                        </View>
+                        <View style={styles.recommendationContent}>
+                          <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
+                          <Text style={styles.recommendationBrand}>{item.brand}</Text>
+                          <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
+                            {item.description}
+                          </Text>
+                          <Text style={styles.recommendationPrice}>{item.price}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
             ) : null}
@@ -658,13 +693,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    alignItems: 'flex-start',
+  },
+  recommendationImageContainer: {
+    marginRight: 12,
   },
   recommendationImage: {
     width: 80,
     height: 80,
     borderRadius: 8,
-    marginRight: 12,
     backgroundColor: '#f5f5f5',
+  },
+  heartButton: {
+    position: 'absolute',
+    bottom: -42,
+    left: '50%',
+    marginLeft: -12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   recommendationContent: {
     flex: 1,
@@ -714,12 +762,12 @@ const styles = StyleSheet.create({
   },
   borderOuter: {
     flex: 1,
-    borderRadius: 30,
-    padding: 20,
+    borderRadius: 0,
+    padding: 0,
   },
   borderInner: {
     flex: 1,
     backgroundColor: 'transparent',
-    borderRadius: 20,
+    borderRadius: 0,
   },
 });

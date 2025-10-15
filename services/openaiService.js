@@ -8,7 +8,7 @@ const TIMEOUT = 30000; // 30 seconds
 // Backend URL - update this with your ngrok URL when using ngrok
 // IMPORTANT: Use HTTP (not HTTPS) to avoid SSL certificate issues on Android
 // Example: 'http://abc123.ngrok-free.app' (without /api at the end)
-const BACKEND_URL = 'http://192.168.1.34:8000'; // UPDATE THIS WITH HTTP URL!
+const BACKEND_URL = 'http://192.168.1.19:8000'; // UPDATE THIS WITH HTTP URL!
 
 // Validate API key on import
 try {
@@ -326,7 +326,7 @@ Return a JSON response:
 
       // Step 2: Search for real products based on analysis
       let recommendations = [];
-      
+
       // Try to get real product recommendations first
       try {
         if (analysisJson.searchTerms) {
