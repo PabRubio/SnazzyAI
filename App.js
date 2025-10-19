@@ -5,13 +5,15 @@ import { StatusBar as RNStatusBar } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { analyzeOutfit } from './services/openaiService';
+import * as NavigationBar from 'expo-navigation-bar';
+import { analyzeOutfit, generateRecommendations } from './services/openaiService';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import ErrorBanner from './components/ErrorBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
 const { width, height } = Dimensions.get('window');
 const BUTTON_SIZE = 60;
@@ -38,23 +40,31 @@ export default function App() {
   const [showError, setShowError] = useState(false);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState(null);
   const [favoriteItems, setFavoriteItems] = useState(new Set());
+  const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
+  const [hasGeneratedRecommendations, setHasGeneratedRecommendations] = useState(false);
+  const [showTryOnModal, setShowTryOnModal] = useState(false);
+  const [selectedTryOnItem, setSelectedTryOnItem] = useState(null);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const cameraRef = useRef(null);
   const captureTimerRef = useRef(null);
   const hapticIntervalRef = useRef(null);
   const delayedCaptureRef = useRef(null);
+  const analysisAbortControllerRef = useRef(null);
+  const recommendationsAbortControllerRef = useRef(null);
   
   // BottomSheet setup
   const bottomSheetRef = useRef(null);
-  const snapPoints = useMemo(() => ['25%', '90%'], []);
+  const snapPoints = useMemo(() => ['25%', '85%'], []);
   
   // BottomSheet callbacks
   const handleSheetChanges = useCallback((index) => {
-    console.log('BottomSheet snap point changed to:', index);
     // If bottom sheet is closed (index = -1), reset the captured photo
     if (index === -1) {
       setCapturedPhotoUri(null);
       setAnalysisResult(null);
       setIsAnalyzing(false);
+      setHasGeneratedRecommendations(false);
+      setIsGeneratingRecommendations(false);
     }
   }, []);
 
@@ -109,6 +119,140 @@ export default function App() {
       return newFavorites;
     });
   }, []);
+
+  // Handle long press on recommendation item
+  const handleLongPressRecommendation = useCallback(async (item) => {
+    await safeHaptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+    setSelectedTryOnItem(item);
+    setShowTryOnModal(true);
+  }, []);
+
+  // Handle Try-On modal OK button
+  const handleTryOnOk = useCallback(async () => {
+    await safeHaptic(() => Haptics.selectionAsync());
+    // Close the modal first
+    setShowTryOnModal(false);
+    setSelectedTryOnItem(null);
+
+    // Show loading screen
+    setShowLoadingScreen(true);
+
+    // After 5 seconds, hide loading screen and return to recommendations
+    setTimeout(() => {
+      setShowLoadingScreen(false);
+    }, 5000);
+  }, []);
+
+  // Handle Try-On modal Cancel button
+  const handleTryOnCancel = useCallback(async () => {
+    await safeHaptic(() => Haptics.selectionAsync());
+    setShowTryOnModal(false);
+    setSelectedTryOnItem(null);
+  }, []);
+
+  // Handle refresh button - reset to camera view
+  const handleRefresh = useCallback(async () => {
+    await safeHaptic(() => Haptics.selectionAsync());
+
+    // Abort any ongoing network requests
+    if (analysisAbortControllerRef.current) {
+      analysisAbortControllerRef.current.abort();
+      analysisAbortControllerRef.current = null;
+    }
+    if (recommendationsAbortControllerRef.current) {
+      recommendationsAbortControllerRef.current.abort();
+      recommendationsAbortControllerRef.current = null;
+    }
+
+    // Close bottom sheet
+    bottomSheetRef.current?.close();
+    // Reset all state
+    setCapturedPhotoUri(null);
+    setAnalysisResult(null);
+    setIsAnalyzing(false);
+    setHasGeneratedRecommendations(false);
+    setIsGeneratingRecommendations(false);
+    setFavoriteItems(new Set());
+    // Dismiss error banner if visible
+    setShowError(false);
+    setErrorMessage(null);
+    // Close try-on modal if open
+    setShowTryOnModal(false);
+    setSelectedTryOnItem(null);
+  }, []);
+
+  // Handle generating recommendations on demand
+  const handleGenerateRecommendations = useCallback(async () => {
+    if (!analysisResult || !analysisResult.searchTerms || isGeneratingRecommendations || hasGeneratedRecommendations) {
+      return;
+    }
+
+    setIsGeneratingRecommendations(true);
+    await safeHaptic(() => Haptics.selectionAsync());
+
+    // Create abort controller for this recommendation request
+    const abortController = new AbortController();
+    recommendationsAbortControllerRef.current = abortController;
+
+    try {
+      console.log('Generating recommendations on demand...');
+      const recommendations = await generateRecommendations(analysisResult.searchTerms, abortController.signal);
+
+      // Clear abort controller on success
+      if (recommendationsAbortControllerRef.current === abortController) {
+        recommendationsAbortControllerRef.current = null;
+      }
+
+      // Check if photo was cleared (user pressed refresh) - if so, don't update recommendations
+      setCapturedPhotoUri(currentUri => {
+        if (!currentUri) {
+          // Photo was cleared, cancel updating recommendations
+          setIsGeneratingRecommendations(false);
+          return currentUri;
+        }
+
+        // Photo still exists, update analysis result with recommendations
+        setAnalysisResult(prevResult => ({
+          ...prevResult,
+          recommendations: recommendations
+        }));
+
+        setHasGeneratedRecommendations(true);
+        setIsGeneratingRecommendations(false);
+
+        return currentUri;
+      });
+    } catch (error) {
+      console.error('Failed to generate recommendations:', error);
+
+      // Clear abort controller on error
+      if (recommendationsAbortControllerRef.current === abortController) {
+        recommendationsAbortControllerRef.current = null;
+      }
+
+      // If request was aborted, just clean up silently
+      if (error.name === 'AbortError') {
+        setIsGeneratingRecommendations(false);
+        return;
+      }
+
+      // Check if photo was cleared - if so, don't show error
+      setCapturedPhotoUri(currentUri => {
+        if (!currentUri) {
+          // Photo was cleared, just reset flag
+          setIsGeneratingRecommendations(false);
+          return currentUri;
+        }
+
+        // Photo still exists, show error
+        setIsGeneratingRecommendations(false);
+        setErrorMessage('Failed to generate recommendations. Please try again.');
+        setShowError(true);
+
+        return currentUri;
+      });
+    }
+  }, [analysisResult, isGeneratingRecommendations, hasGeneratedRecommendations]);
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -241,62 +385,110 @@ export default function App() {
       setIsAnalyzing(true);
       setAnalysisResult(null);
       bottomSheetRef.current?.snapToIndex(0); // Snap to collapsed state (25%)
-      
+
+      // Create abort controller for this analysis
+      const abortController = new AbortController();
+      analysisAbortControllerRef.current = abortController;
+
       try {
         console.log('Starting outfit analysis...');
-        const result = await analyzeOutfit(photo.base64);
+        const result = await analyzeOutfit(photo.base64, abortController.signal);
         console.log('Analysis complete:', result);
+
+        // Clear abort controller on success
+        if (analysisAbortControllerRef.current === abortController) {
+          analysisAbortControllerRef.current = null;
+        }
+
+        // Check if photo was cleared (user pressed refresh) - if so, don't show results
+        setCapturedPhotoUri(currentUri => {
+          if (!currentUri) {
+            // Photo was cleared, cancel showing results
+            setIsAnalyzing(false);
+            setIsProcessingCapture(false);
+            return currentUri;
+          }
+
+          // Photo still exists, proceed with showing results
+          // Check if the photo is valid
+          if (result.isValidPhoto === false) {
+            // Invalid photo detected
+            setIsAnalyzing(false);
+            setIsProcessingCapture(false);
+            bottomSheetRef.current?.close();
+            setErrorMessage('Could not analyze outfit. Please try again with a clear photo.');
+            setShowError(true);
+            // Reset camera state and clear captured photo
+            setTimeout(() => {
+              setAnalysisResult(null);
+              setCapturedPhotoUri(null);
+            }, 500);
+          } else {
+            // Valid photo, show results
+            setAnalysisResult(result);
+            setIsAnalyzing(false);
+            setIsProcessingCapture(false);
+          }
+
+          return currentUri;
+        });
         
-        // Check if the photo is valid
-        if (result.isValidPhoto === false) {
-          // Invalid photo detected
+      } catch (analysisError) {
+        console.error('Analysis failed:', analysisError);
+
+        // Clear abort controller on error
+        if (analysisAbortControllerRef.current === abortController) {
+          analysisAbortControllerRef.current = null;
+        }
+
+        // If request was aborted, just clean up silently
+        if (analysisError.name === 'AbortError') {
           setIsAnalyzing(false);
           setIsProcessingCapture(false);
+          return;
+        }
+
+        // Check if photo was cleared (user pressed refresh) - if so, don't show error
+        setCapturedPhotoUri(currentUri => {
+          if (!currentUri) {
+            // Photo was cleared, just reset flags
+            setIsAnalyzing(false);
+            setIsProcessingCapture(false);
+            return currentUri;
+          }
+
+          // Photo still exists, show error
+          setIsAnalyzing(false);
           bottomSheetRef.current?.close();
-          setErrorMessage('Could not analyze outfit. Please try again with a clear photo.');
+
+          // Determine error message based on error type
+          let errorMsg = 'Connection error. Please check your network.';
+          if (analysisError.message) {
+            if (analysisError.message.includes('Network') ||
+                analysisError.message.includes('connection') ||
+                analysisError.message.includes('timeout')) {
+              errorMsg = 'Connection error. Please check your network.';
+            } else if (analysisError.message.includes('API key')) {
+              errorMsg = 'Configuration error. Please check API settings.';
+            } else if (analysisError.message.includes('Rate limit')) {
+              errorMsg = 'Too many requests. Please wait a moment.';
+            } else {
+              errorMsg = 'Failed to analyze outfit. Please try again.';
+            }
+          }
+
+          setErrorMessage(errorMsg);
           setShowError(true);
+          setIsProcessingCapture(false);
+
           // Reset camera state and clear captured photo
           setTimeout(() => {
             setAnalysisResult(null);
             setCapturedPhotoUri(null);
           }, 500);
-        } else {
-          // Valid photo, show results
-          setAnalysisResult(result);
-          setIsAnalyzing(false);
-          setIsProcessingCapture(false);
-        }
-        
-      } catch (analysisError) {
-        console.error('Analysis failed:', analysisError);
-        setIsAnalyzing(false);
-        bottomSheetRef.current?.close();
-        
-        // Determine error message based on error type
-        let errorMsg = 'Connection error. Please check your network.';
-        if (analysisError.message) {
-          if (analysisError.message.includes('Network') || 
-              analysisError.message.includes('connection') ||
-              analysisError.message.includes('timeout')) {
-            errorMsg = 'Connection error. Please check your network.';
-          } else if (analysisError.message.includes('API key')) {
-            errorMsg = 'Configuration error. Please check API settings.';
-          } else if (analysisError.message.includes('Rate limit')) {
-            errorMsg = 'Too many requests. Please wait a moment.';
-          } else {
-            errorMsg = 'Failed to analyze outfit. Please try again.';
-          }
-        }
-        
-        setErrorMessage(errorMsg);
-        setShowError(true);
-        setIsProcessingCapture(false);
-        
-        // Reset camera state and clear captured photo
-        setTimeout(() => {
-          setAnalysisResult(null);
-          setCapturedPhotoUri(null);
-        }, 500);
+
+          return currentUri;
+        });
       }
       
     } catch (error) {
@@ -326,7 +518,17 @@ export default function App() {
 
   useEffect(() => {
     RNStatusBar.setHidden(true, 'none');
-    
+
+    // Set navigation bar button style
+    const setupNavigationBar = async () => {
+      try {
+        await NavigationBar.setButtonStyleAsync('light');
+      } catch (error) {
+        console.log('Navigation bar setup failed:', error);
+      }
+    };
+    setupNavigationBar();
+
     // Cleanup on unmount
     return () => {
       // Clear any pending timers
@@ -338,6 +540,13 @@ export default function App() {
       }
       if (hapticIntervalRef.current) {
         clearInterval(hapticIntervalRef.current);
+      }
+      // Abort any ongoing network requests
+      if (analysisAbortControllerRef.current) {
+        analysisAbortControllerRef.current.abort();
+      }
+      if (recommendationsAbortControllerRef.current) {
+        recommendationsAbortControllerRef.current.abort();
       }
     };
   }, []);
@@ -396,11 +605,37 @@ export default function App() {
       <View style={styles.container}>
         {capturedPhotoUri ? (
           // Show captured photo as background when photo is taken
-          <Image
-            source={{ uri: capturedPhotoUri }}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
-          />
+          <>
+            <Image
+              source={{ uri: capturedPhotoUri }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+            />
+            {/* Top overlay icons - hide during processing */}
+            {!isProcessingCapture && (
+              <View style={styles.imageOverlayIcons}>
+                {/* X icon - top left */}
+                <TouchableOpacity
+                  style={styles.overlayIconButton}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={28} color="#fff" />
+                </TouchableOpacity>
+
+                {/* Snazzy AI text in center */}
+                <Text style={styles.overlayTitle}>Snazzy AI</Text>
+
+                {/* Refresh icon - top right */}
+                <TouchableOpacity
+                  style={styles.overlayIconButton}
+                  activeOpacity={0.7}
+                  onPress={handleRefresh}
+                >
+                  <Ionicons name="refresh" size={28} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         ) : (
           // Show camera view when no photo is captured
           <>
@@ -467,20 +702,26 @@ export default function App() {
         {/* Bottom Sheet for Analysis Results */}
         {(isAnalyzing || analysisResult) && (
           <BottomSheet
-            ref={bottomSheetRef}
-            index={0}
-            snapPoints={snapPoints}
-            onChange={handleSheetChanges}
-            enablePanDownToClose={false}
-            enableOverDrag={false}
-            animateOnMount={true}
-            backdropComponent={null}
-            backgroundStyle={styles.bottomSheetBackground}
-            handleIndicatorStyle={styles.bottomSheetIndicator}
-            maxDynamicContentSize={height * 0.9}
-            enableDynamicSizing={false}
+              ref={bottomSheetRef}
+              index={0}
+              snapPoints={snapPoints}
+              onChange={handleSheetChanges}
+              enablePanDownToClose={false}
+              enableOverDrag={false}
+              animateOnMount={true}
+              backdropComponent={null}
+              backgroundStyle={styles.bottomSheetBackground}
+              handleIndicatorStyle={styles.bottomSheetIndicator}
+              maxDynamicContentSize={height * 0.85}
+              enableDynamicSizing={false}
+              enableContentPanningGesture={!showTryOnModal}
+              enableHandlePanningGesture={!showTryOnModal}
+            >
+          <BottomSheetScrollView
+            contentContainerStyle={styles.bottomSheetContent}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={!showTryOnModal}
           >
-          <BottomSheetScrollView contentContainerStyle={styles.bottomSheetContent} showsVerticalScrollIndicator={false}>
             {isAnalyzing ? (
               <View style={styles.loadingContent}>
                 <ActivityIndicator size="large" color="#007AFF" />
@@ -497,56 +738,142 @@ export default function App() {
                 <View style={styles.resultHeader}>
                   <Text style={styles.outfitName}>{analysisResult.outfitName}</Text>
                   <Text style={styles.rating}>⭐ {analysisResult.rating}/10</Text>
-                  <Text style={styles.shortDescription}>{analysisResult.shortDescription}</Text>
+                  <Text style={styles.shortDescription} numberOfLines={2} ellipsizeMode="tail">{analysisResult.shortDescription}</Text>
                 </View>
+
+                {/* Recommendations Section - Always visible */}
                 <View style={styles.recommendationsContainer}>
                   <Text style={styles.recommendationsTitle}>Recommended Items</Text>
-                  {analysisResult.recommendations.map((item, index) => {
-                    const itemId = `${analysisResult.outfitName}-${index}`;
-                    const isFavorite = favoriteItems.has(itemId);
-                    return (
-                      <TouchableOpacity
-                        key={`rec-${index}`}
-                        style={[styles.recommendationCard, index < analysisResult.recommendations.length - 1 && { marginBottom: 12 }]}
-                        activeOpacity={0.8}
-                        onPress={() => handleOpenPurchaseUrl(item.purchaseUrl)}
-                      >
-                        <View style={styles.recommendationImageContainer}>
-                          <Image
-                            source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
-                            style={styles.recommendationImage}
-                            resizeMode="cover"
-                          />
-                          <TouchableOpacity
-                            style={styles.heartButton}
-                            onPress={() => handleToggleFavorite(itemId)}
-                            activeOpacity={0.7}
-                          >
-                            <Ionicons
-                              name={isFavorite ? 'heart' : 'heart-outline'}
-                              size={24}
-                              color={isFavorite ? '#FF3B30' : '#999'}
+
+                  {/* Show items if recommendations have been generated */}
+                  {hasGeneratedRecommendations && analysisResult.recommendations && analysisResult.recommendations.length > 0 ? (
+                    analysisResult.recommendations.map((item, index) => {
+                      const itemId = `${analysisResult.outfitName}-${index}`;
+                      const isFavorite = favoriteItems.has(itemId);
+                      return (
+                        <TouchableOpacity
+                          key={`rec-${index}`}
+                          style={[styles.recommendationCard, { marginBottom: 12 }]}
+                          activeOpacity={0.8}
+                          onPress={() => handleOpenPurchaseUrl(item.purchaseUrl)}
+                          onLongPress={() => handleLongPressRecommendation(item)}
+                          delayLongPress={1000}
+                        >
+                          <View style={styles.recommendationImageContainer}>
+                            <Image
+                              source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
+                              style={styles.recommendationImage}
+                              resizeMode="cover"
                             />
-                          </TouchableOpacity>
-                        </View>
-                        <View style={styles.recommendationContent}>
-                          <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={styles.recommendationBrand}>{item.brand}</Text>
-                          <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
-                            {item.description}
-                          </Text>
-                          <Text style={styles.recommendationPrice}>{item.price}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
+                            <TouchableOpacity
+                              style={styles.heartButton}
+                              onPress={() => handleToggleFavorite(itemId)}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons
+                                name={isFavorite ? 'heart' : 'heart-outline'}
+                                size={24}
+                                color={isFavorite ? '#FF3B30' : '#999'}
+                              />
+                            </TouchableOpacity>
+                          </View>
+                          <View style={styles.recommendationContent}>
+                            <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
+                            <Text style={styles.recommendationBrand}>{item.brand}</Text>
+                            <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
+                              {item.description}
+                            </Text>
+                            <Text style={styles.recommendationPrice}>{item.price}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    /* Show placeholder when no recommendations generated yet */
+                    !hasGeneratedRecommendations && (
+                      <View style={styles.placeholderContainer}>
+                        <Ionicons name="shirt-outline" size={48} color="#ccc" />
+                        <Text style={styles.placeholderText}>Nothing to see here ;)</Text>
+                      </View>
+                    )
+                  )}
                 </View>
+
+                {/* Generate Recommendations Button - At the very bottom */}
+                {!hasGeneratedRecommendations && analysisResult.searchTerms && (
+                  <View style={styles.generateButtonContainer}>
+                    <TouchableOpacity
+                      style={[styles.generateButton, isGeneratingRecommendations && styles.generateButtonDisabled]}
+                      onPress={handleGenerateRecommendations}
+                      disabled={isGeneratingRecommendations}
+                      activeOpacity={0.7}
+                    >
+                      {isGeneratingRecommendations ? (
+                        <>
+                          <ActivityIndicator size="small" color="#fff" style={styles.buttonLoader} />
+                          <Text style={styles.generateButtonText}>Fetching Recommendations</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="sparkles" size={20} color="#fff" style={styles.buttonIcon} />
+                          <Text style={styles.generateButtonText}>Generate Recommendations</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ) : null}
           </BottomSheetScrollView>
           </BottomSheet>
         )}
-        
+
+        {/* Try-On Custom Overlay (replaces Modal to fix navigation bar) */}
+        {showTryOnModal && (
+          <View style={styles.modalOverlay}>
+            <BlurView
+              intensity={100}
+              tint="dark"
+              style={StyleSheet.absoluteFillObject}
+            >
+              <TouchableOpacity
+                style={StyleSheet.absoluteFillObject}
+                activeOpacity={1}
+              />
+            </BlurView>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Try-On feature (BETA)</Text>
+              <Text style={styles.modalSubtitle}>See how this item looks on you using AI technology ✨</Text>
+              <View style={styles.modalButtonsContainer}>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel]}
+                    onPress={handleTryOnCancel}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonOk]}
+                    onPress={handleTryOnOk}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalButtonTextOk}>OK</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Loading Screen - Full white screen with loading indicator */}
+        {showLoadingScreen && (
+          <View style={styles.loadingScreenOverlay}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingScreenText}>Loading...</Text>
+          </View>
+        )}
+
         <StatusBar hidden />
       </View>
     </GestureHandlerRootView>
@@ -670,6 +997,41 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 22,
   },
+  generateButtonContainer: {
+    marginTop: 96,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    minWidth: 240,
+  },
+  generateButtonDisabled: {
+    backgroundColor: '#999',
+    opacity: 0.7,
+  },
+  generateButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
+  buttonLoader: {
+    marginRight: 8,
+  },
   recommendationsContainer: {
     flex: 1,
     marginTop: 10,
@@ -679,6 +1041,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 15,
+  },
+  placeholderContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginTop: 66,
+    minHeight: 150,
+  },
+  placeholderText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#999',
+    marginTop: 16,
   },
   recommendationsList: {
     paddingBottom: 20,
@@ -697,6 +1073,10 @@ const styles = StyleSheet.create({
   },
   recommendationImageContainer: {
     marginRight: 12,
+    width: 80,
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
   },
   recommendationImage: {
     width: 80,
@@ -705,10 +1085,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   heartButton: {
-    position: 'absolute',
-    bottom: -42,
-    left: '50%',
-    marginLeft: -12,
+    marginTop: 'auto',
+    marginBottom: 'auto',
     width: 24,
     height: 24,
     alignItems: 'center',
@@ -769,5 +1147,116 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
     borderRadius: 0,
+  },
+  // Try-On Modal styles
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: width * 0.9,
+    maxWidth: 520,
+    minHeight: 185,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  modalButtonsContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modalButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f0f0f0',
+  },
+  modalButtonOk: {
+    backgroundColor: '#007AFF',
+  },
+  modalButtonTextCancel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalButtonTextOk: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  // Image overlay icons
+  imageOverlayIcons: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    zIndex: 100,
+  },
+  overlayIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlayTitle: {
+    alignSelf: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  // Loading Screen styles
+  loadingScreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10000,
+    elevation: 10000,
+  },
+  loadingScreenText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 16,
   },
 });

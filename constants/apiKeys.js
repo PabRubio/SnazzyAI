@@ -3,12 +3,12 @@
 // In production, use environment variables and secure storage methods
 // Never commit actual API keys to version control
 
-export const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || 'your-openai-api-key-here';
+export const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || 'your-anthropic-api-key-here';
 
 // Validation function to ensure API key is configured
 export const validateApiKey = () => {
-  if (!OPENAI_API_KEY || OPENAI_API_KEY === 'your-openai-api-key-here') {
-    throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY in constants/apiKeys.js');
+  if (!ANTHROPIC_API_KEY || ANTHROPIC_API_KEY === 'your-anthropic-api-key-here') {
+    throw new Error('Anthropic API key not configured. Please set ANTHROPIC_API_KEY in constants/apiKeys.js');
   }
   return true;
 };

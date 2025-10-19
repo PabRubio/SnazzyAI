@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { OPENAI_API_KEY, validateApiKey, obfuscateApiKey } from '../constants/apiKeys';
+import { ANTHROPIC_API_KEY, validateApiKey, obfuscateApiKey } from '../constants/apiKeys';
 
-// OpenAI API configuration
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+// Anthropic Claude API configuration
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const TIMEOUT = 30000; // 30 seconds
 
 // Backend URL - update this with your ngrok URL when using ngrok
@@ -14,19 +14,20 @@ const BACKEND_URL = 'http://192.168.1.19:8000'; // UPDATE THIS WITH HTTP URL!
 try {
   validateApiKey();
   if (__DEV__) {
-    console.log('OpenAI API Key configured:', obfuscateApiKey(OPENAI_API_KEY));
+    console.log('Anthropic API Key configured:', obfuscateApiKey(ANTHROPIC_API_KEY));
   }
 } catch (error) {
-  console.error('OpenAI API Key validation failed:', error.message);
+  console.error('Anthropic API Key validation failed:', error.message);
 }
 
 // Create axios instance with base configuration
 const apiClient = axios.create({
-  baseURL: 'https://api.openai.com/v1',
+  baseURL: 'https://api.anthropic.com/v1',
   timeout: TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+    'x-api-key': ANTHROPIC_API_KEY,
+    'anthropic-version': '2023-06-01',
   },
 });
 
@@ -34,13 +35,13 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     if (__DEV__) {
-      console.log('OpenAI API Request:', config.method?.toUpperCase(), config.url);
+      console.log('Anthropic API Request:', config.method?.toUpperCase(), config.url);
     }
     return config;
   },
   (error) => {
     if (__DEV__) {
-      console.error('OpenAI API Request Error:', error);
+      console.error('Anthropic API Request Error:', error);
     }
     return Promise.reject(error);
   }
@@ -50,13 +51,13 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     if (__DEV__) {
-      console.log('OpenAI API Response:', response.status, response.data);
+      console.log('Anthropic API Response:', response.status, response.data);
     }
     return response;
   },
   (error) => {
     if (__DEV__) {
-      console.error('OpenAI API Response Error:', error.response?.status, error.response?.data);
+      console.error('Anthropic API Response Error:', error.response?.status, error.response?.data);
     }
     return Promise.reject(error);
   }
@@ -89,52 +90,55 @@ const validateOutfitAnalysis = (data) => {
     errors.push('Invalid isValidPhoto (expected boolean)');
   }
   
-  // Check recommendations array
-  if (!Array.isArray(data.recommendations)) {
-    errors.push('Invalid recommendations (expected array)');
-  } else if (data.recommendations.length !== 5) {
-    errors.push(`Invalid recommendations length (expected 5, got ${data.recommendations.length})`);
-  } else {
-    // Validate each recommendation
-    data.recommendations.forEach((rec, index) => {
-      const requiredRecFields = ['name', 'brand', 'description', 'price', 'imageUrl', 'purchaseUrl'];
-      requiredRecFields.forEach(field => {
-        if (!rec[field] || typeof rec[field] !== 'string') {
-          errors.push(`Recommendation ${index + 1}: Missing or invalid ${field} (expected string)`);
-        }
+  // Check recommendations array (optional - added later by generateRecommendations)
+  if (data.recommendations !== undefined) {
+    if (!Array.isArray(data.recommendations)) {
+      errors.push('Invalid recommendations (expected array)');
+    } else if (data.recommendations.length > 0) {
+      // Validate each recommendation if present
+      data.recommendations.forEach((rec, index) => {
+        const requiredRecFields = ['name', 'brand', 'description', 'price', 'imageUrl', 'purchaseUrl'];
+        requiredRecFields.forEach(field => {
+          if (!rec[field] || typeof rec[field] !== 'string') {
+            errors.push(`Recommendation ${index + 1}: Missing or invalid ${field} (expected string)`);
+          }
+        });
       });
-    });
+    }
   }
   
   return errors;
 };
 
-// Parse and validate OpenAI response
+// Parse and validate Claude response
 const parseOutfitResponse = (response) => {
   try {
-    if (!response.choices || !response.choices[0] || !response.choices[0].message) {
-      throw new Error('Invalid OpenAI response structure');
+    if (!response.content || !Array.isArray(response.content) || response.content.length === 0) {
+      throw new Error('Invalid Claude response structure');
     }
-    
-    const content = response.choices[0].message.content;
-    if (!content) {
-      throw new Error('Empty response content');
+
+    // Find the text content block
+    const textBlock = response.content.find(block => block.type === 'text');
+    if (!textBlock || !textBlock.text) {
+      throw new Error('No text content found in response');
     }
-    
+
+    const content = textBlock.text;
+
     // Try to parse JSON from the content
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('No JSON found in response content');
     }
-    
+
     const parsedData = JSON.parse(jsonMatch[0]);
-    
+
     // Validate the parsed data
     const validationErrors = validateOutfitAnalysis(parsedData);
     if (validationErrors.length > 0) {
       throw new Error(`Validation errors: ${validationErrors.join(', ')}`);
     }
-    
+
     return parsedData;
   } catch (error) {
     console.error('Error parsing outfit response:', error);
@@ -151,7 +155,7 @@ const handleApiError = (error, attempt = 1) => {
     
     switch (status) {
       case 401:
-        throw new Error('Invalid API key. Please check your OpenAI API key configuration.');
+        throw new Error('Invalid API key. Please check your Anthropic API key configuration.');
       case 429:
         const errorMessage = data?.error?.message || 'Rate limit exceeded';
         if (attempt <= 3) {
@@ -174,7 +178,7 @@ const handleApiError = (error, attempt = 1) => {
             message: `Server error (${status}). Retrying...` 
           };
         }
-        throw new Error('OpenAI server is currently unavailable. Please try again later.');
+        throw new Error('Anthropic server is currently unavailable. Please try again later.');
       default:
         throw new Error(`API request failed with status ${status}: ${data?.error?.message || 'Unknown error'}`);
     }
@@ -208,14 +212,19 @@ const handleApiError = (error, attempt = 1) => {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Function to search for real products using backend API
-const searchForProducts = async (searchTerms) => {
+const searchForProducts = async (searchTerms, signal) => {
   try {
     console.log('Searching for products with web search:', searchTerms);
     console.log('Using backend URL:', BACKEND_URL);
 
-    // Use fetch instead of axios to avoid SSL certificate issues with ngrok
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+    // Use fetch with provided signal or create a timeout controller
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), 300000); // 5 minute timeout
+
+    // If a signal was provided, listen for its abort event
+    if (signal) {
+      signal.addEventListener('abort', () => timeoutController.abort());
+    }
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/search-products/`, {
@@ -226,7 +235,7 @@ const searchForProducts = async (searchTerms) => {
           'User-Agent': 'SnazzyApp/1.0'
         },
         body: JSON.stringify({ searchTerms }),
-        signal: controller.signal
+        signal: timeoutController.signal
       });
 
       clearTimeout(timeoutId);
@@ -276,201 +285,83 @@ const searchForProducts = async (searchTerms) => {
 };
 
 // Function to analyze outfit from base64 image with retry logic
-export const analyzeOutfit = async (base64Image, maxRetries = 3) => {
+export const analyzeOutfit = async (base64Image, signal, maxRetries = 3) => {
   let lastError;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       // Validate API key before making request
       validateApiKey();
 
-      // Step 1: Analyze the image with regular gpt-4o (supports images)
+      // Analyze the image with Claude Sonnet 4.5 (supports images)
       const analysisRequest = {
-        model: 'gpt-4o',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 500,
         messages: [
-          {
-            role: 'system',
-            content: `You are a fashion stylist AI. Analyze the outfit and suggest what items would complement it.
-            
-Return a JSON response:
-{
-  "outfitName": "creative name for the outfit (max 3 words)",
-  "shortDescription": "fashion review description (must be 10-15 words exactly)",
-  "rating": number from 3-7 (be moderate with ratings),
-  "isValidPhoto": boolean,
-  "searchTerms": "specific search terms for complementary items"
-}`
-          },
           {
             role: 'user',
             content: [
               {
-                type: 'text',
-                text: 'Analyze this outfit and suggest specific product search terms.'
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: base64Image
+                }
               },
               {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
-                }
+                type: 'text',
+                text: `You are a fashion stylist AI that ONLY analyzes outfits worn by people.
+
+STRICT VALIDATION RULES:
+- ONLY accept photos showing a person wearing clothing/outfit
+- REJECT photos of: rooms, furniture, objects, plants, tools, landscapes, animals, food, etc.
+- REJECT photos without a visible person in clothing
+- If the photo is not fashion-related, set "isValidPhoto": false and return minimal data
+
+Analyze this outfit and suggest specific product search terms.
+
+Return a JSON response:
+{
+  "outfitName": "creative name for the outfit (max 3 words)" OR "Invalid Photo" if not fashion,
+  "shortDescription": "fashion review description (must be 10-15 words exactly)" OR "Photo does not show a person wearing an outfit" if invalid,
+  "rating": number from 3-7 (be moderate with ratings) OR 0 if invalid photo,
+  "isValidPhoto": true ONLY if photo shows a person in clothing, false otherwise,
+  "searchTerms": "specific search terms for complementary fashion items" OR "" if invalid
+}
+
+If isValidPhoto is false, set searchTerms to empty string "".`
               }
             ]
           }
         ]
       };
 
-      const analysisResponse = await apiClient.post('/chat/completions', analysisRequest);
-      const analysisContent = analysisResponse.data.choices[0].message.content;
-      const analysisJson = JSON.parse(analysisContent.match(/\{[\s\S]*\}/)[0]);
+      const analysisResponse = await apiClient.post('/messages', analysisRequest, {
+        signal: signal
+      });
+      const analysisJson = parseOutfitResponse(analysisResponse.data);
 
-      // Step 2: Search for real products based on analysis
-      let recommendations = [];
-
-      // Try to get real product recommendations first
-      try {
-        if (analysisJson.searchTerms) {
-          console.log('Searching for real products with terms:', analysisJson.searchTerms);
-          recommendations = await searchForProducts(analysisJson.searchTerms);
-        }
-      } catch (searchError) {
-        console.error('Product search failed, using fallback:', searchError.message);
-      }
-      
-      // Static clothing items as fallback if search fails or returns empty
-      const staticClothingItems = [
-        {
-          name: "Plain white t-shirt",
-          brand: "Zara",
-          description: "Classic cotton crew neck tee in crisp white, perfect for layering.",
-          price: "$25",
-          imageUrl: "https://tse1.mm.bing.net/th/id/OIP.V2u0mcmx-nYk3jltqDY6_wHaE8?pid",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Plain black t-shirt",
-          brand: "H&M",
-          description: "Soft cotton jersey tee in black with a relaxed, everyday fit.",
-          price: "$20",
-          imageUrl: "https://encrypted-tbn0.gstatic.com/shopping?q=tbn:ANd9GcR5DQoK9W79lIpLtaW5zUtFvLifb_BpOf1BnpehisCcQoxe1F5qVxU_lWrc5gHVo3DONEOjX1TwDGBmKcFe0PFSXyI0VO11VjKezCtvqMfMwl97O9zP47XWkU-cqqoQcIDHyNUnc8k&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Plain white chinos",
-          brand: "Ralph Lauren",
-          description: "Slim-fit chino shorts in white cotton.",
-          price: "$85",
-          imageUrl: "https://img01.ztat.net/article/spp-media-p1/84245e8911c14e52b65d70a5eee932c4/894e0e11fad94479877bad8e16a6e3d9.jpg?imwidth=762&filter=packshot",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Plain green chinos",
-          brand: "Zara",
-          description: "Lightweight chino shorts in olive green with a tailored cut.",
-          price: "$60",
-          imageUrl: "https://encrypted-tbn3.gstatic.com/shopping?q=tbn:ANd9GcQWkc7Xbq6KgVkEK8mbCouNEhN8Q4fouWXa1tjueyKw7M-7x_n-SariOmEkKdOK2xfOGaAsG5h9HJvSnVc9yfAjXQc9u0gmR7FbxxEZUWNW20wurhcJIuEmEAvmz5MuEwIHUPpM7RwxRgU&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Plain light blue jeans",
-          brand: "H&M",
-          description: "Casual light blue denim jeans with a clean flat-front design.",
-          price: "$55",
-          imageUrl: "https://encrypted-tbn3.gstatic.com/shopping?q=tbn:ANd9GcTJBBVhQMpy-dBLUE_Ed60EST86xgQgasK87cycZkisVvEXDBV_xkA64G9j3FVrznUzq5uLaYr0YQW1isWjEeygqoxfdWwV0XYfjY22FSwcW9fnaylzbbIUnRF7iuQjWNI7PP7gTRpS&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Knitted summer sweater",
-          brand: "Ralph Lauren",
-          description: "Lightweight knitted pullover in breathable cotton blend.",
-          price: "$95",
-          imageUrl: "https://encrypted-tbn3.gstatic.com/shopping?q=tbn:ANd9GcS9k5Ejrspp5PwbiuizkGyrxW9_Boi9AJS5L1MPSnctYKveN_GOpVpYH50jHQ_gDsHdy4FwfLoxz6dnnvw3Y89jPxQ8flgZL5yuEXlQZqpVp-9rolIHzEkki5h_h0tK2FlAnvTNndg&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Corduroy pants",
-          brand: "Zara",
-          description: "Loose-fit vintage-style corduroy trousers in beige polyester.",
-          price: "$75",
-          imageUrl: "https://encrypted-tbn0.gstatic.com/shopping?q=tbn:ANd9GcSc_lPylQq4FrBO56zyi6VLq-fBUBVUvk1VFxUEQLy1tDMDicdv3NTfVTEr9_eUCiD5cJFqO5tO98866lM9166OzslTjGuF-3OSFVqHTcIb5-QQBFvjtuMZT1GiuSRD-h_hnsXd4vg&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Corduroy shorts",
-          brand: "H&M",
-          description: "Relaxed vintage-inspired shorts in corduroy with soft texture.",
-          price: "$50",
-          imageUrl: "https://encrypted-tbn0.gstatic.com/shopping?q=tbn:ANd9GcR2oOYJ7k7lt2qf-Py100ZVbQgWY3_aKdlP55kMZr_wWSJFeyD16TqPvyaaOJuCNNJsxgEheCgd0b53xE5znp2o795daxyPLmHBiCfKy4wVOZnQiqf04LSNk0N8YxZsVLE4jZraARz6&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "White linen shirt",
-          brand: "Ralph Lauren",
-          description: "Breezy linen button-down shirt in crisp white for effortless elegance.",
-          price: "$110",
-          imageUrl: "https://encrypted-tbn2.gstatic.com/shopping?q=tbn:ANd9GcQXx4JEp5OLAUnNrdt6ifZIB8tRzDJgryqvm8dAmDa37En8S1XAPFTXZgzqLzCLegYzGgGN4sHEDJ59SvTGivPT1Gf8jrlLO5ltQSn_ZnFKRPGxZYeywO5-Hx05pY3zlfWkFUCmlaY&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "White polo shirt",
-          brand: "Tommy Hilfiger",
-          description: "Iconic white cotton polo with embroidered flag logo.",
-          price: "$70",
-          imageUrl: "https://img01.ztat.net/article/spp-media-p1/83be198eb1904de29bed8903fa8fc80c/4ab00bc1082b4706a6b1f57f6f0dc0a5.jpg?imwidth=762&filter=packshot",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Dark blue polo shirt",
-          brand: "Tommy Hilfiger",
-          description: "Navy polo with two-button placket and signature Tommy details.",
-          price: "$70",
-          imageUrl: "https://encrypted-tbn1.gstatic.com/shopping?q=tbn:ANd9GcS7qBaZCBFwcNT77QRB_mYtfzFUtQ1SruW-MfItO3eIP5PFrxpOaDX8nreMwOUCAybjqbRyJRl09SHbYVIqmv1cRFKFMVgd88OipEc1wSJfa-4DFnqUw6NvfNDs2Bl9gpTwSqMXdCU&usqp=CAc",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Nike Court Vision Mid",
-          brand: "Nike",
-          description: "Classic basketball-inspired mid-top sneakers in all white leather.",
-          price: "$90",
-          imageUrl: "https://static.nike.com/a/images/t_PDP_936_v1/f_auto%2Cq_auto%3Aeco/dac41466-a8e8-4b3a-99c3-c6e7662dde42/NIKE%2BCOURT%2BVISION%2BMID%2BNN.png",
-          purchaseUrl: "#"
-        },
-        {
-          name: "Nike Revolution Comfort",
-          brand: "Nike",
-          description: "Lightweight dark blue running sneakers with cushioned sole.",
-          price: "$65",
-          imageUrl: "https://encrypted-tbn3.gstatic.com/shopping?q=tbn:ANd9GcThc2NBSdlNeRtEJNiWOnwB7ub-22Egvw9FKbaB85dLKRW6aFgIG3Rrb-F5UTrEyxRtdWuyN5lwgk3E7oAemO3yVNDeCIEYWm1NM5JoWM-pEgacO9OTMh1_rW_o2H5omEaMtN1uVig&usqp=CAc",
-          purchaseUrl: "#"
-        }
-      ];
-      
-      // Only use real recommendations from search, no fallback to static items
-      // Keep static items in code but don't use them
-      if (!recommendations || recommendations.length === 0) {
-        console.log('No real products found from search');
-        recommendations = [];
-      }
-
-      // Combine analysis with recommendations
+      // Return analysis without recommendations
       const finalResult = {
         outfitName: analysisJson.outfitName,
         shortDescription: analysisJson.shortDescription,
-        rating: analysisJson.rating, // Use the actual rating from the analysis
+        rating: analysisJson.rating,
         isValidPhoto: analysisJson.isValidPhoto,
-        recommendations: recommendations
+        searchTerms: analysisJson.searchTerms,
+        recommendations: [] // Empty initially
       };
-      
+
       if (__DEV__) {
-        console.log('Successfully parsed outfit analysis:', finalResult);
+        console.log('Successfully parsed outfit analysis (no recommendations yet):', finalResult);
       }
-      
+
       return finalResult;
-      
+
     } catch (error) {
       console.error(`Attempt ${attempt} failed:`, error.message);
       lastError = error;
-      
+
       try {
         const errorInfo = handleApiError(error, attempt);
         if (errorInfo.shouldRetry && attempt < maxRetries) {
@@ -482,14 +373,38 @@ Return a JSON response:
         // If handleApiError throws, it's a final error
         throw finalError;
       }
-      
+
       // If we get here, it's the last attempt or no retry needed
       break;
     }
   }
-  
+
   // All retries exhausted
   throw lastError || new Error('Failed to analyze outfit after multiple attempts');
 };
 
-export { apiClient, OPENAI_API_URL };
+// Function to generate recommendations based on search terms
+export const generateRecommendations = async (searchTerms, signal) => {
+  try {
+    if (!searchTerms || searchTerms.trim() === '') {
+      console.log('No search terms provided, returning empty recommendations');
+      return [];
+    }
+
+    console.log('Generating recommendations with search terms:', searchTerms);
+    const products = await searchForProducts(searchTerms, signal);
+
+    if (!products || products.length === 0) {
+      console.log('No products found from search');
+      return [];
+    }
+
+    console.log(`Found ${products.length} product recommendations`);
+    return products;
+  } catch (error) {
+    console.error('Failed to generate recommendations:', error.message);
+    throw new Error('Failed to generate recommendations. Please try again.');
+  }
+};
+
+export { apiClient, ANTHROPIC_API_URL };
