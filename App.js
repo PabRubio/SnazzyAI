@@ -1162,7 +1162,7 @@ const styles = StyleSheet.create({
     padding: 24,
     width: width * 0.9,
     maxWidth: 520,
-    minHeight: 185,
+    minHeight: 200,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -1198,7 +1198,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 42,
+    minHeight: 40,
   },
   modalButtonCancel: {
     backgroundColor: '#f0f0f0',
