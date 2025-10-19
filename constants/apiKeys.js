@@ -4,11 +4,20 @@
 // Never commit actual API keys to version control
 
 export const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || 'your-anthropic-api-key-here';
+export const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || 'your-google-api-key-here';
 
 // Validation function to ensure API key is configured
 export const validateApiKey = () => {
   if (!ANTHROPIC_API_KEY || ANTHROPIC_API_KEY === 'your-anthropic-api-key-here') {
     throw new Error('Anthropic API key not configured. Please set ANTHROPIC_API_KEY in constants/apiKeys.js');
+  }
+  return true;
+};
+
+// Validation function for Google API key
+export const validateGoogleApiKey = () => {
+  if (!GOOGLE_API_KEY || GOOGLE_API_KEY === 'your-google-api-key-here') {
+    throw new Error('Google API key not configured. Please set GOOGLE_API_KEY in constants/apiKeys.js or .env');
   }
   return true;
 };

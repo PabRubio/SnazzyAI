@@ -7,6 +7,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, wit
 import * as Haptics from 'expo-haptics';
 import * as NavigationBar from 'expo-navigation-bar';
 import { analyzeOutfit, generateRecommendations } from './services/openaiService';
+import { performVirtualTryOn } from './services/geminiService';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -39,19 +40,23 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [showError, setShowError] = useState(false);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState(null);
+  const [capturedPhotoBase64, setCapturedPhotoBase64] = useState(null);
   const [favoriteItems, setFavoriteItems] = useState(new Set());
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
   const [hasGeneratedRecommendations, setHasGeneratedRecommendations] = useState(false);
   const [showTryOnModal, setShowTryOnModal] = useState(false);
   const [selectedTryOnItem, setSelectedTryOnItem] = useState(null);
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  const [tryOnResultImage, setTryOnResultImage] = useState(null);
+  const [showTryOnResult, setShowTryOnResult] = useState(false);
   const cameraRef = useRef(null);
   const captureTimerRef = useRef(null);
   const hapticIntervalRef = useRef(null);
   const delayedCaptureRef = useRef(null);
   const analysisAbortControllerRef = useRef(null);
   const recommendationsAbortControllerRef = useRef(null);
-  
+  const tryOnAbortControllerRef = useRef(null);
+
   // BottomSheet setup
   const bottomSheetRef = useRef(null);
   const snapPoints = useMemo(() => ['25%', '85%'], []);
@@ -61,6 +66,7 @@ export default function App() {
     // If bottom sheet is closed (index = -1), reset the captured photo
     if (index === -1) {
       setCapturedPhotoUri(null);
+      setCapturedPhotoBase64(null);
       setAnalysisResult(null);
       setIsAnalyzing(false);
       setHasGeneratedRecommendations(false);
@@ -130,24 +136,89 @@ export default function App() {
   // Handle Try-On modal OK button
   const handleTryOnOk = useCallback(async () => {
     await safeHaptic(() => Haptics.selectionAsync());
+
     // Close the modal first
     setShowTryOnModal(false);
+    const currentItem = selectedTryOnItem;
     setSelectedTryOnItem(null);
 
     // Show loading screen
     setShowLoadingScreen(true);
 
-    // After 5 seconds, hide loading screen and return to recommendations
-    setTimeout(() => {
+    // Create abort controller for this try-on request
+    const abortController = new AbortController();
+    tryOnAbortControllerRef.current = abortController;
+
+    try {
+      console.log('Starting virtual try-on with Nano Banana...');
+
+      // Perform virtual try-on using Gemini 2.5 Flash Image
+      const result = await performVirtualTryOn(
+        capturedPhotoBase64,
+        currentItem.imageUrl,
+        abortController.signal
+      );
+
+      // Clear abort controller on success
+      if (tryOnAbortControllerRef.current === abortController) {
+        tryOnAbortControllerRef.current = null;
+      }
+
+      console.log('Virtual try-on successful!');
+
+      // Hide loading screen and show result overlay
       setShowLoadingScreen(false);
-    }, 5000);
-  }, []);
+      setTryOnResultImage(result.dataUri);
+      setShowTryOnResult(true);
+
+    } catch (error) {
+      console.error('Virtual try-on failed:', error);
+
+      // Clear abort controller on error
+      if (tryOnAbortControllerRef.current === abortController) {
+        tryOnAbortControllerRef.current = null;
+      }
+
+      // Hide loading screen
+      setShowLoadingScreen(false);
+
+      // If request was aborted, just clean up silently
+      if (error.name === 'AbortError') {
+        return;
+      }
+
+      // Show error to user
+      let errorMsg = 'Virtual try-on failed. Please try again.';
+      if (error.message) {
+        if (error.message.includes('API key')) {
+          errorMsg = 'Google API key not configured. Please check settings.';
+        } else if (error.message.includes('Network') || error.message.includes('connection')) {
+          errorMsg = 'Network error. Please check your connection.';
+        } else if (error.message.includes('Rate limit')) {
+          errorMsg = 'Too many requests. Please wait a moment.';
+        }
+      }
+
+      setErrorMessage(errorMsg);
+      setShowError(true);
+
+      // Haptic feedback for error
+      await safeHaptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
+    }
+  }, [capturedPhotoBase64, selectedTryOnItem]);
 
   // Handle Try-On modal Cancel button
   const handleTryOnCancel = useCallback(async () => {
     await safeHaptic(() => Haptics.selectionAsync());
     setShowTryOnModal(false);
     setSelectedTryOnItem(null);
+  }, []);
+
+  // Handle closing try-on result
+  const handleCloseTryOnResult = useCallback(async () => {
+    await safeHaptic(() => Haptics.selectionAsync());
+    setShowTryOnResult(false);
+    setTryOnResultImage(null);
   }, []);
 
   // Handle refresh button - reset to camera view
@@ -163,11 +234,16 @@ export default function App() {
       recommendationsAbortControllerRef.current.abort();
       recommendationsAbortControllerRef.current = null;
     }
+    if (tryOnAbortControllerRef.current) {
+      tryOnAbortControllerRef.current.abort();
+      tryOnAbortControllerRef.current = null;
+    }
 
     // Close bottom sheet
     bottomSheetRef.current?.close();
     // Reset all state
     setCapturedPhotoUri(null);
+    setCapturedPhotoBase64(null);
     setAnalysisResult(null);
     setIsAnalyzing(false);
     setHasGeneratedRecommendations(false);
@@ -179,6 +255,9 @@ export default function App() {
     // Close try-on modal if open
     setShowTryOnModal(false);
     setSelectedTryOnItem(null);
+    // Close try-on result if open
+    setShowTryOnResult(false);
+    setTryOnResultImage(null);
   }, []);
 
   // Handle generating recommendations on demand
@@ -374,9 +453,10 @@ export default function App() {
       });
       
       console.log('Photo captured:', photo.uri);
-      
-      // Store the captured photo URI to display it as background
+
+      // Store the captured photo URI and base64
       setCapturedPhotoUri(photo.uri);
+      setCapturedPhotoBase64(photo.base64);
       
       // Reset capture state
       setIsCapturing(false);
@@ -547,6 +627,9 @@ export default function App() {
       }
       if (recommendationsAbortControllerRef.current) {
         recommendationsAbortControllerRef.current.abort();
+      }
+      if (tryOnAbortControllerRef.current) {
+        tryOnAbortControllerRef.current.abort();
       }
     };
   }, []);
@@ -871,6 +954,39 @@ export default function App() {
           <View style={styles.loadingScreenOverlay}>
             <ActivityIndicator size="large" color="#007AFF" />
             <Text style={styles.loadingScreenText}>Loading...</Text>
+          </View>
+        )}
+
+        {/* Try-On Result Overlay - Full screen overlay with result image */}
+        {showTryOnResult && tryOnResultImage && (
+          <View style={styles.tryOnResultOverlay}>
+            <Image
+              source={{ uri: tryOnResultImage }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+            />
+            {/* Top overlay icons for try-on result */}
+            <View style={styles.imageOverlayIcons}>
+              {/* Back arrow - top left */}
+              <TouchableOpacity
+                style={styles.overlayIconButton}
+                activeOpacity={0.7}
+                onPress={handleCloseTryOnResult}
+              >
+                <Ionicons name="arrow-back" size={28} color="#fff" />
+              </TouchableOpacity>
+
+              {/* Snazzy AI text in center */}
+              <Text style={styles.overlayTitle}>Snazzy AI</Text>
+
+              {/* Play icon - top right (no functionality yet) */}
+              <TouchableOpacity
+                style={styles.overlayIconButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="play" size={28} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -1258,5 +1374,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginTop: 16,
+  },
+  // Try-On Result Overlay styles
+  tryOnResultOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 10001,
+    elevation: 10001,
   },
 });
