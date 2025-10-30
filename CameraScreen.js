@@ -30,7 +30,7 @@ const safeHaptic = async (hapticFunction) => {
   }
 };
 
-export default function App() {
+export default function CameraScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -98,8 +98,6 @@ export default function App() {
         return;
       }
 
-      // Haptic feedback on tap
-      await safeHaptic(() => Haptics.selectionAsync());
       // Open URL directly - it will throw if it truly can't open
       await Linking.openURL(url);
     } catch (error) {
@@ -114,7 +112,6 @@ export default function App() {
 
   // Handle toggling favorite status
   const handleToggleFavorite = useCallback(async (itemId) => {
-    await safeHaptic(() => Haptics.selectionAsync());
     setFavoriteItems(prevFavorites => {
       const newFavorites = new Set(prevFavorites);
       if (newFavorites.has(itemId)) {
@@ -135,8 +132,6 @@ export default function App() {
 
   // Handle Try-On modal OK button
   const handleTryOnOk = useCallback(async () => {
-    await safeHaptic(() => Haptics.selectionAsync());
-
     // Close the modal first
     setShowTryOnModal(false);
     const currentItem = selectedTryOnItem;
@@ -201,30 +196,68 @@ export default function App() {
 
       setErrorMessage(errorMsg);
       setShowError(true);
-
-      // Haptic feedback for error
-      await safeHaptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
     }
   }, [capturedPhotoBase64, selectedTryOnItem]);
 
   // Handle Try-On modal Cancel button
   const handleTryOnCancel = useCallback(async () => {
-    await safeHaptic(() => Haptics.selectionAsync());
     setShowTryOnModal(false);
     setSelectedTryOnItem(null);
   }, []);
 
   // Handle closing try-on result
   const handleCloseTryOnResult = useCallback(async () => {
-    await safeHaptic(() => Haptics.selectionAsync());
     setShowTryOnResult(false);
     setTryOnResultImage(null);
   }, []);
 
+  // Handle close button - reset and navigate back to home
+  const handleClose = useCallback(async () => {
+    // Abort any ongoing network requests
+    if (analysisAbortControllerRef.current) {
+      analysisAbortControllerRef.current.abort();
+      analysisAbortControllerRef.current = null;
+    }
+    if (recommendationsAbortControllerRef.current) {
+      recommendationsAbortControllerRef.current.abort();
+      recommendationsAbortControllerRef.current = null;
+    }
+    if (tryOnAbortControllerRef.current) {
+      tryOnAbortControllerRef.current.abort();
+      tryOnAbortControllerRef.current = null;
+    }
+
+    // Close bottom sheet first
+    bottomSheetRef.current?.close();
+
+    // Wait for bottom sheet animation to complete (250ms)
+    // Then reset state and navigate
+    setTimeout(() => {
+      // Reset all state
+      setCapturedPhotoUri(null);
+      setCapturedPhotoBase64(null);
+      setAnalysisResult(null);
+      setIsAnalyzing(false);
+      setHasGeneratedRecommendations(false);
+      setIsGeneratingRecommendations(false);
+      setFavoriteItems(new Set());
+      // Dismiss error banner if visible
+      setShowError(false);
+      setErrorMessage(null);
+      // Close try-on modal if open
+      setShowTryOnModal(false);
+      setSelectedTryOnItem(null);
+      // Close try-on result if open
+      setShowTryOnResult(false);
+      setTryOnResultImage(null);
+
+      // Navigate back to home screen after cleanup
+      navigation.goBack();
+    }, 250);
+  }, [navigation]);
+
   // Handle refresh button - reset to camera view
   const handleRefresh = useCallback(async () => {
-    await safeHaptic(() => Haptics.selectionAsync());
-
     // Abort any ongoing network requests
     if (analysisAbortControllerRef.current) {
       analysisAbortControllerRef.current.abort();
@@ -267,7 +300,6 @@ export default function App() {
     }
 
     setIsGeneratingRecommendations(true);
-    await safeHaptic(() => Haptics.selectionAsync());
 
     // Create abort controller for this recommendation request
     const abortController = new AbortController();
@@ -701,6 +733,7 @@ export default function App() {
                 <TouchableOpacity
                   style={styles.overlayIconButton}
                   activeOpacity={0.7}
+                  onPress={handleClose}
                 >
                   <Ionicons name="close" size={28} color="#fff" />
                 </TouchableOpacity>
@@ -999,11 +1032,11 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#3a3b3c',
   },
   loadingContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: '#3a3b3c',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1064,13 +1097,13 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#3a3b3e',
     marginTop: 16,
     marginBottom: 4,
   },
   loadingSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#3a3b3e',
     textAlign: 'center',
   },
   errorContent: {
@@ -1085,7 +1118,7 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     fontSize: 14,
-    color: '#666',
+    color: '#3a3b3e',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -1099,7 +1132,7 @@ const styles = StyleSheet.create({
   outfitName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#3a3b3e',
     marginBottom: 8,
   },
   rating: {
@@ -1110,7 +1143,7 @@ const styles = StyleSheet.create({
   },
   shortDescription: {
     fontSize: 16,
-    color: '#666',
+    color: '#3a3b3e',
     lineHeight: 22,
   },
   generateButtonContainer: {
@@ -1155,7 +1188,7 @@ const styles = StyleSheet.create({
   recommendationsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#3a3b3e',
     marginBottom: 15,
   },
   placeholderContainer: {
@@ -1215,7 +1248,7 @@ const styles = StyleSheet.create({
   recommendationName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#3a3b3e',
     marginBottom: 2,
   },
   recommendationBrand: {
@@ -1225,14 +1258,14 @@ const styles = StyleSheet.create({
   },
   recommendationDescription: {
     fontSize: 13,
-    color: '#666',
+    color: '#3a3b3e',
     lineHeight: 18,
     marginBottom: 4,
   },
   recommendationPrice: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#333',
+    color: '#3a3b3e',
   },
   recommendationSeparator: {
     height: 12,
@@ -1288,13 +1321,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#3a3b3e',
     textAlign: 'center',
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#3a3b3e',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
@@ -1325,7 +1358,7 @@ const styles = StyleSheet.create({
   modalButtonTextCancel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#3a3b3e',
   },
   modalButtonTextOk: {
     fontSize: 14,
@@ -1347,7 +1380,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(58, 59, 60, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1372,13 +1405,13 @@ const styles = StyleSheet.create({
   loadingScreenText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#3a3b3e',
     marginTop: 16,
   },
   // Try-On Result Overlay styles
   tryOnResultOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: '#3a3b3c',
     zIndex: 10001,
     elevation: 10001,
   },

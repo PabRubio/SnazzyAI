@@ -89,11 +89,11 @@ export default function AppSimple() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#3a3b3c',
   },
   loadingContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: '#3a3b3c',
     alignItems: 'center',
     justifyContent: 'center',
   },
