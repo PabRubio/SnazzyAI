@@ -5,9 +5,7 @@ import { StatusBar as RNStatusBar } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import * as NavigationBar from 'expo-navigation-bar';
-import { analyzeOutfit, generateRecommendations } from './services/openaiService';
-import { performVirtualTryOn } from './services/geminiService';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -15,6 +13,8 @@ import ErrorBanner from './components/ErrorBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { supabase } from './lib/supabase';
+import { uploadPhoto, saveOutfitAnalysis, saveRecommendations, saveTryOnResult, addFavorite, removeFavorite } from './lib/supabaseHelpers';
 
 const { width, height } = Dimensions.get('window');
 const BUTTON_SIZE = 60;
@@ -41,7 +41,7 @@ export default function CameraScreen({ navigation }) {
   const [showError, setShowError] = useState(false);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState(null);
   const [capturedPhotoBase64, setCapturedPhotoBase64] = useState(null);
-  const [favoriteItems, setFavoriteItems] = useState(new Set());
+  const [favoriteItems, setFavoriteItems] = useState(new Map()); // Map: itemId -> database UUID
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
   const [hasGeneratedRecommendations, setHasGeneratedRecommendations] = useState(false);
   const [showTryOnModal, setShowTryOnModal] = useState(false);
@@ -111,17 +111,58 @@ export default function CameraScreen({ navigation }) {
   }, []);
 
   // Handle toggling favorite status
-  const handleToggleFavorite = useCallback(async (itemId) => {
+  const handleToggleFavorite = useCallback(async (item, itemId) => {
+    const isFavorite = favoriteItems.has(itemId);
+    const dbUuid = favoriteItems.get(itemId);
+
+    // Optimistically update UI
     setFavoriteItems(prevFavorites => {
-      const newFavorites = new Set(prevFavorites);
-      if (newFavorites.has(itemId)) {
+      const newFavorites = new Map(prevFavorites);
+      if (isFavorite) {
         newFavorites.delete(itemId);
       } else {
-        newFavorites.add(itemId);
+        newFavorites.set(itemId, 'pending'); // Temporary until we get the UUID
       }
       return newFavorites;
     });
-  }, []);
+
+    try {
+      if (isFavorite) {
+        // Remove from favorites using database UUID
+        await removeFavorite(dbUuid);
+      } else {
+        // Add to favorites and get the database UUID back
+        const newDbUuid = await addFavorite({
+          name: item.name,
+          brand: item.brand,
+          price: item.price,
+          imageUrl: item.imageUrl,
+          purchaseUrl: item.purchaseUrl,
+          description: item.description,
+          category: item.category || 'other'
+        });
+        // Update with actual database UUID
+        setFavoriteItems(prevFavorites => {
+          const newFavorites = new Map(prevFavorites);
+          newFavorites.set(itemId, newDbUuid);
+          return newFavorites;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update favorite:', error);
+      // Revert optimistic update on error
+      setFavoriteItems(prevFavorites => {
+        const newFavorites = new Map(prevFavorites);
+        if (isFavorite) {
+          newFavorites.set(itemId, dbUuid); // Restore with original UUID
+        } else {
+          newFavorites.delete(itemId);
+        }
+        return newFavorites;
+      });
+      Alert.alert('Error', 'Failed to update favorite');
+    }
+  }, [favoriteItems]);
 
   // Handle long press on recommendation item
   const handleLongPressRecommendation = useCallback(async (item) => {
@@ -147,12 +188,21 @@ export default function CameraScreen({ navigation }) {
     try {
       console.log('Starting virtual try-on with Nano Banana...');
 
-      // Perform virtual try-on using Gemini 2.5 Flash Image
-      const result = await performVirtualTryOn(
-        capturedPhotoBase64,
-        currentItem.imageUrl,
-        abortController.signal
-      );
+      // Call Supabase edge function for virtual try-on
+      const { data, error } = await supabase.functions.invoke('virtual-try-on', {
+        body: {
+          userPhotoBase64: capturedPhotoBase64,
+          clothingImageUrl: currentItem.imageUrl
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Virtual try-on failed');
+      }
+
+      if (!data || !data.base64) {
+        throw new Error('No image returned from virtual try-on');
+      }
 
       // Clear abort controller on success
       if (tryOnAbortControllerRef.current === abortController) {
@@ -160,6 +210,17 @@ export default function CameraScreen({ navigation }) {
       }
 
       console.log('Virtual try-on successful!');
+
+      // Use the dataUri from response
+      const result = {
+        dataUri: data.dataUri
+      };
+
+      // Save try-on result to database (without awaiting)
+      const photoUrl = capturedPhotoUri; // We'll use the URI as reference
+      saveTryOnResult(photoUrl, currentItem.imageUrl, data.base64).catch(err => {
+        console.error('Failed to save try-on result:', err);
+      });
 
       // Hide loading screen and show result overlay
       setShowLoadingScreen(false);
@@ -307,7 +368,23 @@ export default function CameraScreen({ navigation }) {
 
     try {
       console.log('Generating recommendations on demand...');
-      const recommendations = await generateRecommendations(analysisResult.searchTerms, abortController.signal);
+
+      // Call Supabase edge function for product search
+      const { data, error } = await supabase.functions.invoke('search-products', {
+        body: {
+          searchTerms: analysisResult.searchTerms
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to generate recommendations');
+      }
+
+      if (!data || !data.products) {
+        throw new Error('No recommendations returned');
+      }
+
+      const recommendations = data.products;
 
       // Clear abort controller on success
       if (recommendationsAbortControllerRef.current === abortController) {
@@ -323,10 +400,21 @@ export default function CameraScreen({ navigation }) {
         }
 
         // Photo still exists, update analysis result with recommendations
-        setAnalysisResult(prevResult => ({
-          ...prevResult,
-          recommendations: recommendations
-        }));
+        setAnalysisResult(prevResult => {
+          const updatedResult = {
+            ...prevResult,
+            recommendations: recommendations
+          };
+
+          // Save recommendations to database (without awaiting)
+          if (prevResult.analysisId) {
+            saveRecommendations(prevResult.analysisId, recommendations).catch(err => {
+              console.error('Failed to save recommendations:', err);
+            });
+          }
+
+          return updatedResult;
+        });
 
         setHasGeneratedRecommendations(true);
         setIsGeneratingRecommendations(false);
@@ -504,7 +592,27 @@ export default function CameraScreen({ navigation }) {
 
       try {
         console.log('Starting outfit analysis...');
-        const result = await analyzeOutfit(photo.base64, abortController.signal);
+
+        // First, upload photo to Supabase Storage
+        const { url: photoUrl } = await uploadPhoto(photo.base64, 'outfit-photos');
+        console.log('Photo uploaded to:', photoUrl);
+
+        // Call Supabase edge function for outfit analysis
+        const { data, error } = await supabase.functions.invoke('analyze-outfit', {
+          body: {
+            base64Image: photo.base64
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Analysis failed');
+        }
+
+        if (!data) {
+          throw new Error('No analysis returned');
+        }
+
+        const result = { analysis: data };
         console.log('Analysis complete:', result);
 
         // Clear abort controller on success
@@ -536,8 +644,19 @@ export default function CameraScreen({ navigation }) {
               setCapturedPhotoUri(null);
             }, 500);
           } else {
-            // Valid photo, show results
-            setAnalysisResult(result);
+            // Valid photo, save analysis to database (without awaiting)
+            saveOutfitAnalysis(result.analysis, photoUrl).then(analysisId => {
+              // Update result with analysisId for later use (recommendations)
+              setAnalysisResult(prevResult => ({
+                ...prevResult,
+                analysisId: analysisId
+              }));
+            }).catch(err => {
+              console.error('Failed to save outfit analysis:', err);
+            });
+
+            // Show results immediately
+            setAnalysisResult({ ...result.analysis });
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
           }
@@ -630,16 +749,6 @@ export default function CameraScreen({ navigation }) {
 
   useEffect(() => {
     RNStatusBar.setHidden(true, 'none');
-
-    // Set navigation bar button style
-    const setupNavigationBar = async () => {
-      try {
-        await NavigationBar.setButtonStyleAsync('light');
-      } catch (error) {
-        console.log('Navigation bar setup failed:', error);
-      }
-    };
-    setupNavigationBar();
 
     // Cleanup on unmount
     return () => {
@@ -769,11 +878,6 @@ export default function CameraScreen({ navigation }) {
                 }, 500);
               }}
             />
-            {!isCameraReady && (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading camera...</Text>
-              </View>
-            )}
           </>
         )}
         
@@ -883,7 +987,7 @@ export default function CameraScreen({ navigation }) {
                             />
                             <TouchableOpacity
                               style={styles.heartButton}
-                              onPress={() => handleToggleFavorite(itemId)}
+                              onPress={() => handleToggleFavorite(item, itemId)}
                               activeOpacity={0.7}
                             >
                               <Ionicons
@@ -1034,16 +1138,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#3a3b3c',
   },
-  loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#3a3b3c',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: '#fff',
-    fontSize: 18,
-  },
   captureButtonContainer: {
     position: 'absolute',
     bottom: 50,
@@ -1097,13 +1191,13 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginTop: 16,
     marginBottom: 4,
   },
   loadingSubtitle: {
     fontSize: 14,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     textAlign: 'center',
   },
   errorContent: {
@@ -1118,7 +1212,7 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     fontSize: 14,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -1132,7 +1226,7 @@ const styles = StyleSheet.create({
   outfitName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginBottom: 8,
   },
   rating: {
@@ -1143,11 +1237,11 @@ const styles = StyleSheet.create({
   },
   shortDescription: {
     fontSize: 16,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     lineHeight: 22,
   },
   generateButtonContainer: {
-    marginTop: 96,
+    marginTop: 100,
     marginBottom: 20,
     alignItems: 'center',
   },
@@ -1188,7 +1282,7 @@ const styles = StyleSheet.create({
   recommendationsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginBottom: 15,
   },
   placeholderContainer: {
@@ -1203,7 +1297,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#999',
-    marginTop: 16,
+    marginTop: 12,
   },
   recommendationsList: {
     paddingBottom: 20,
@@ -1248,7 +1342,7 @@ const styles = StyleSheet.create({
   recommendationName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginBottom: 2,
   },
   recommendationBrand: {
@@ -1258,14 +1352,14 @@ const styles = StyleSheet.create({
   },
   recommendationDescription: {
     fontSize: 13,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     lineHeight: 18,
     marginBottom: 4,
   },
   recommendationPrice: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
   },
   recommendationSeparator: {
     height: 12,
@@ -1321,13 +1415,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     textAlign: 'center',
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
@@ -1358,7 +1452,7 @@ const styles = StyleSheet.create({
   modalButtonTextCancel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
   },
   modalButtonTextOk: {
     fontSize: 14,
@@ -1405,7 +1499,7 @@ const styles = StyleSheet.create({
   loadingScreenText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginTop: 16,
   },
   // Try-On Result Overlay styles

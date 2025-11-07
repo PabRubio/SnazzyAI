@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ScrollView, TextInput, Alert, Keyboard, Switch, Linking } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ScrollView, TextInput, Alert, Keyboard, Switch, Linking, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from './lib/supabase';
+import { getProfile, updateProfile, addFavorite, removeFavorite } from './lib/supabaseHelpers';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,6 +27,10 @@ export default function HomeScreen({ navigation }) {
   const otherScrollRef = useRef(null);
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [favorites, setFavorites] = useState([]);
+  const [favoriteItems, setFavoriteItems] = useState(new Map()); // Map: itemId -> database UUID
 
   // Settings state - Personal Information
   const [name, setName] = useState('');
@@ -49,6 +56,85 @@ export default function HomeScreen({ navigation }) {
   // General Settings
   const [language, setLanguage] = useState('English');
   const [pushNotifications, setPushNotifications] = useState(true);
+
+
+  // Load profile from Supabase on mount
+  useEffect(() => {
+    loadProfileData();
+    loadFavorites();
+  }, []);
+
+  const loadProfileData = async () => {
+    try {
+      setLoading(true);
+      const profile = await getProfile();
+
+      if (profile) {
+        setName(profile.name || '');
+        setEmail(profile.email || '');
+
+        // Convert birth from YYYY-MM-DD to YYYYMMDD
+        if (profile.birth) {
+          setBirth(profile.birth.replace(/-/g, ''));
+        } else {
+          setBirth('');
+        }
+
+        setGender(profile.gender || '');
+        setLocation(profile.location || '');
+        setHeight(profile.height?.toString() || '');
+        setWeight(profile.weight?.toString() || '');
+        setCurrency(profile.currency || 'USD');
+        setPriceMin(profile.price_min?.toString() || '');
+        setPriceMax(profile.price_max?.toString() || '');
+        setShirtSize(profile.shirt_size || '');
+        setPantsSize(profile.pants_size || '');
+        setShoeSize(profile.shoe_size || '');
+        setFavoriteBrands(profile.favorite_brands?.join(' ') || '');
+        setFavoriteStyles(profile.favorite_styles || []);
+        setLanguage(profile.language || 'English');
+        setPushNotifications(profile.push_notifications ?? true);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      Alert.alert('Error', 'Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFavorites = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        setFavorites([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('favorite_products')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('favorited_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setFavorites(data || []);
+
+      // Initialize favoriteItems Map with all items as favorited
+      const favMap = new Map();
+      (data || []).forEach(item => {
+        favMap.set(item.id, item.id); // Store database ID as value
+      });
+      setFavoriteItems(favMap);
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      // Don't show alert for favorites - just log the error
+    }
+  };
 
   // Predefined options
   const styleOptions = ['Casual', 'Formal', 'Streetwear', 'Sporty', 'Vintage', 'Minimalist'];
@@ -122,10 +208,94 @@ export default function HomeScreen({ navigation }) {
   const handleSaveSettings = async () => {
     Keyboard.dismiss();
 
+    try {
+      setSaving(true);
+
+      // Parse favorite brands from space-separated string to array
+      const brandsArray = favoriteBrands
+        .split(' ')
+        .map(brand => brand.trim())
+        .filter(brand => brand.length > 0);
+
+      // Validate birth date (only accept empty or complete 8 digits)
+      if (birth && birth.length > 0 && birth.length !== 8) {
+        Alert.alert(
+          'Incomplete Birth Date',
+          'Please complete your birth date or leave it empty.',
+          [{ text: 'OK' }]
+        );
+        setSaving(false);
+        return;
+      }
+
+      // Validate price range
+      const minPrice = priceMin ? parseInt(priceMin) : null;
+      const maxPrice = priceMax ? parseInt(priceMax) : null;
+
+      if (minPrice !== null && maxPrice !== null && minPrice >= maxPrice) {
+        Alert.alert(
+          'Invalid Price Range',
+          'Minimum price must be less than maximum price.',
+          [{ text: 'OK' }]
+        );
+        setSaving(false);
+        return;
+      }
+
+      await updateProfile({
+        name: name || null,
+        email: email || null,
+        birth: birth || null,
+        gender: gender || null,
+        location: location || null,
+        height: height ? parseInt(height) : null,
+        weight: weight ? parseFloat(weight) : null,
+        currency,
+        price_min: priceMin ? parseInt(priceMin) : null,
+        price_max: priceMax ? parseInt(priceMax) : null,
+        shirt_size: shirtSize || null,
+        pants_size: pantsSize || null,
+        shoe_size: shoeSize || null,
+        favorite_brands: brandsArray,
+        favorite_styles: favoriteStyles,
+        language,
+        push_notifications: pushNotifications,
+      });
+
+      Alert.alert(
+        'Settings Saved',
+        'Your preferences have been updated successfully.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      Alert.alert('Error', 'Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Handle sign out
+  const handleSignOut = async () => {
     Alert.alert(
-      'Settings Saved',
-      'Your preferences have been updated successfully.',
-      [{ text: 'OK' }]
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supabase.auth.signOut();
+              // Navigation will be handled by Navigator.js auth state listener
+            } catch (error) {
+              console.error('Error signing out:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          }
+        }
+      ]
     );
   };
 
@@ -133,58 +303,16 @@ export default function HomeScreen({ navigation }) {
   const handleDeleteAccount = async () => {
     Alert.alert(
       'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      'To delete your account and all associated data, please contact us at pablo@snazzyai.app with your account email. We will process your request within 24 hours.',
       [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            // Clear all user data
-            setName('');
-            setBirth('');
-            setEmail('');
-            setGender('');
-            setLocation('');
-            setHeight('');
-            setWeight('');
-            setPriceMin('');
-            setPriceMax('');
-            setCurrency('USD');
-            setShirtSize('');
-            setPantsSize('');
-            setShoeSize('');
-            setFavoriteBrands('');
-            setFavoriteStyles([]);
-            setLanguage('English');
-            setPushNotifications(true);
-
-            Alert.alert('Account Deleted', 'Your account has been successfully deleted.');
-          }
-        }
+        { text: 'OK' }
       ]
     );
   };
 
-  // Reset all settings to initial values
-  const resetSettings = () => {
-    setName('');
-    setBirth('');
-    setEmail('');
-    setGender('');
-    setLocation('');
-    setHeight('');
-    setWeight('');
-    setPriceMin('');
-    setPriceMax('');
-    setCurrency('USD');
-    setShirtSize('');
-    setPantsSize('');
-    setShoeSize('');
-    setFavoriteBrands('');
-    setFavoriteStyles([]);
-    setLanguage('English');
-    setPushNotifications(true);
+  // Reset settings to saved values (discard unsaved changes)
+  const resetSettings = async () => {
+    await loadProfileData();
   };
 
   const handleTabPress = async (tabName) => {
@@ -193,10 +321,69 @@ export default function HomeScreen({ navigation }) {
       resetSettings();
     }
 
+    // If switching to home tab, reload favorites
+    if (tabName === 'home' && activeTab !== 'home') {
+      loadFavorites();
+    }
+
     if (tabName === 'add') {
       navigation.navigate('Camera');
     } else {
       setActiveTab(tabName);
+    }
+  };
+
+  // Handle toggling favorite (like CameraScreen)
+  const handleToggleFavorite = async (item) => {
+    const isFavorited = favoriteItems.has(item.id);
+    const dbUuid = favoriteItems.get(item.id);
+
+    // Optimistically update UI
+    setFavoriteItems(prevFavorites => {
+      const newFavorites = new Map(prevFavorites);
+      if (isFavorited) {
+        newFavorites.delete(item.id);
+      } else {
+        newFavorites.set(item.id, 'pending'); // Temporary until we get the UUID
+      }
+      return newFavorites;
+    });
+
+    try {
+      if (isFavorited) {
+        // Remove from favorites using database UUID
+        await removeFavorite(dbUuid);
+      } else {
+        // Add back to favorites and get the database UUID
+        const newDbUuid = await addFavorite({
+          name: item.name,
+          brand: item.brand,
+          price: item.price,
+          imageUrl: item.image_url,
+          purchaseUrl: item.purchase_url,
+          description: item.description,
+          category: item.category || 'other'
+        });
+        // Update with actual database UUID
+        setFavoriteItems(prevFavorites => {
+          const newFavorites = new Map(prevFavorites);
+          newFavorites.set(item.id, newDbUuid);
+          return newFavorites;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+      // Revert optimistic update on error
+      setFavoriteItems(prevFavorites => {
+        const newFavorites = new Map(prevFavorites);
+        if (isFavorited) {
+          newFavorites.set(item.id, dbUuid); // Restore with original UUID
+        } else {
+          newFavorites.delete(item.id);
+        }
+        return newFavorites;
+      });
+      Alert.alert('Error', 'Failed to update favorite');
     }
   };
 
@@ -222,9 +409,29 @@ export default function HomeScreen({ navigation }) {
       }
     });
 
-    // Cleanup listener when component unmounts
-    return unsubscribeBlur;
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      // Reload favorites when returning to HomeScreen (e.g., from Camera)
+      if (activeTab === 'home') {
+        loadFavorites();
+      }
+    });
+
+    // Cleanup listeners when component unmounts
+    return () => {
+      unsubscribeBlur();
+      unsubscribeFocus();
+    };
   }, [navigation, activeTab]);
+
+  // Show loading spinner while fetching profile
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -242,199 +449,245 @@ export default function HomeScreen({ navigation }) {
 
             {/* Sections Container */}
             <View style={styles.sectionsContainer}>
-              {/* Shirts Section */}
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Favourite Shirts</Text>
-                <ScrollView
-                  horizontal
-                  bounces={false}
-                  ref={shirtsScrollRef}
-                  overScrollMode="never"
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalScrollContent}
-                >
-                  {[1, 2, 3].map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[styles.recommendationCard, index !== 2 && styles.cardMarginRight]}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.recommendationImageContainer}>
-                        <Image
-                          source={{ uri: 'https://via.placeholder.com/150' }}
-                          style={styles.recommendationImage}
-                          resizeMode="cover"
-                        />
-                        <TouchableOpacity
-                          style={styles.heartButton}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons
-                            name="heart"
-                            size={24}
-                            color="#FF3B30"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.recommendationContent}>
-                        <Text style={styles.recommendationName} numberOfLines={1}>Shirt {item}</Text>
-                        <Text style={styles.recommendationBrand}>Brand</Text>
-                        <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
-                          Product description goes here
-                        </Text>
-                        <Text style={styles.recommendationPrice}>$0.00</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+              {favorites.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="heart-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyText}>No favorites yet :(</Text>
+                </View>
+              ) : (
+                <>
+                  {/* Shirts Section */}
+                  {favorites.filter(item => item.category === 'shirts').length > 0 && (
+                    <View style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>Shirts</Text>
+                      <ScrollView
+                        ref={shirtsScrollRef}
+                        horizontal
+                        bounces={false}
+                        overScrollMode="never"
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalScrollContent}
+                      >
+                        {favorites.filter(item => item.category === 'shirts').map((item, index, arr) => {
+                          const isFavorited = favoriteItems.has(item.id);
+                          return (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={[styles.recommendationCard, index !== arr.length - 1 && styles.cardMarginRight]}
+                            activeOpacity={0.8}
+                            onPress={() => handleOpenLink(item.purchase_url, item.name)}
+                          >
+                            <View style={styles.recommendationImageContainer}>
+                              <Image
+                                source={{ uri: item.image_url || 'https://via.placeholder.com/150' }}
+                                style={styles.recommendationImage}
+                                resizeMode="cover"
+                              />
+                              <TouchableOpacity
+                                style={styles.heartButton}
+                                onPress={() => handleToggleFavorite(item)}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons
+                                  name={isFavorited ? 'heart' : 'heart-outline'}
+                                  size={24}
+                                  color={isFavorited ? '#FF3B30' : '#999'}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                            <View style={styles.recommendationContent}>
+                              <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
+                              <Text style={styles.recommendationBrand}>{item.brand}</Text>
+                              <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
+                                {item.description}
+                              </Text>
+                              <Text style={styles.recommendationPrice}>{item.price}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
 
-              {/* Pants Section */}
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Favourite Pants</Text>
-                <ScrollView
-                  horizontal
-                  bounces={false}
-                  ref={pantsScrollRef}
-                  overScrollMode="never"
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalScrollContent}
-                >
-                  {[1, 2, 3].map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[styles.recommendationCard, index !== 2 && styles.cardMarginRight]}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.recommendationImageContainer}>
-                        <Image
-                          source={{ uri: 'https://via.placeholder.com/150' }}
-                          style={styles.recommendationImage}
-                          resizeMode="cover"
-                        />
-                        <TouchableOpacity
-                          style={styles.heartButton}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons
-                            name="heart"
-                            size={24}
-                            color="#FF3B30"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.recommendationContent}>
-                        <Text style={styles.recommendationName} numberOfLines={1}>Pants {item}</Text>
-                        <Text style={styles.recommendationBrand}>Brand</Text>
-                        <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
-                          Product description goes here
-                        </Text>
-                        <Text style={styles.recommendationPrice}>$0.00</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+                  {/* Pants Section */}
+                  {favorites.filter(item => item.category === 'pants').length > 0 && (
+                    <View style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>Pants</Text>
+                      <ScrollView
+                        ref={pantsScrollRef}
+                        horizontal
+                        bounces={false}
+                        overScrollMode="never"
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalScrollContent}
+                      >
+                        {favorites.filter(item => item.category === 'pants').map((item, index, arr) => {
+                          const isFavorited = favoriteItems.has(item.id);
+                          return (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={[styles.recommendationCard, index !== arr.length - 1 && styles.cardMarginRight]}
+                            activeOpacity={0.8}
+                            onPress={() => handleOpenLink(item.purchase_url, item.name)}
+                          >
+                            <View style={styles.recommendationImageContainer}>
+                              <Image
+                                source={{ uri: item.image_url || 'https://via.placeholder.com/150' }}
+                                style={styles.recommendationImage}
+                                resizeMode="cover"
+                              />
+                              <TouchableOpacity
+                                style={styles.heartButton}
+                                onPress={() => handleToggleFavorite(item)}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons
+                                  name={isFavorited ? 'heart' : 'heart-outline'}
+                                  size={24}
+                                  color={isFavorited ? '#FF3B30' : '#999'}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                            <View style={styles.recommendationContent}>
+                              <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
+                              <Text style={styles.recommendationBrand}>{item.brand}</Text>
+                              <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
+                                {item.description}
+                              </Text>
+                              <Text style={styles.recommendationPrice}>{item.price}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
 
-              {/* Shoes Section */}
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Favourite Shoes</Text>
-                <ScrollView
-                  horizontal
-                  bounces={false}
-                  ref={shoesScrollRef}
-                  overScrollMode="never"
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalScrollContent}
-                >
-                  {[1, 2, 3].map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[styles.recommendationCard, index !== 2 && styles.cardMarginRight]}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.recommendationImageContainer}>
-                        <Image
-                          source={{ uri: 'https://via.placeholder.com/150' }}
-                          style={styles.recommendationImage}
-                          resizeMode="cover"
-                        />
-                        <TouchableOpacity
-                          style={styles.heartButton}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons
-                            name="heart"
-                            size={24}
-                            color="#FF3B30"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.recommendationContent}>
-                        <Text style={styles.recommendationName} numberOfLines={1}>Shoes {item}</Text>
-                        <Text style={styles.recommendationBrand}>Brand</Text>
-                        <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
-                          Product description goes here
-                        </Text>
-                        <Text style={styles.recommendationPrice}>$0.00</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+                  {/* Shoes Section */}
+                  {favorites.filter(item => item.category === 'shoes').length > 0 && (
+                    <View style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>Shoes</Text>
+                      <ScrollView
+                        ref={shoesScrollRef}
+                        horizontal
+                        bounces={false}
+                        overScrollMode="never"
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalScrollContent}
+                      >
+                        {favorites.filter(item => item.category === 'shoes').map((item, index, arr) => {
+                          const isFavorited = favoriteItems.has(item.id);
+                          return (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={[styles.recommendationCard, index !== arr.length - 1 && styles.cardMarginRight]}
+                            activeOpacity={0.8}
+                            onPress={() => handleOpenLink(item.purchase_url, item.name)}
+                          >
+                            <View style={styles.recommendationImageContainer}>
+                              <Image
+                                source={{ uri: item.image_url || 'https://via.placeholder.com/150' }}
+                                style={styles.recommendationImage}
+                                resizeMode="cover"
+                              />
+                              <TouchableOpacity
+                                style={styles.heartButton}
+                                onPress={() => handleToggleFavorite(item)}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons
+                                  name={isFavorited ? 'heart' : 'heart-outline'}
+                                  size={24}
+                                  color={isFavorited ? '#FF3B30' : '#999'}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                            <View style={styles.recommendationContent}>
+                              <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
+                              <Text style={styles.recommendationBrand}>{item.brand}</Text>
+                              <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
+                                {item.description}
+                              </Text>
+                              <Text style={styles.recommendationPrice}>{item.price}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
 
-              {/* Other Section */}
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Favourite Other</Text>
-                <ScrollView
-                  horizontal
-                  bounces={false}
-                  ref={otherScrollRef}
-                  overScrollMode="never"
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalScrollContent}
-                >
-                  {[1, 2, 3].map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[styles.recommendationCard, index !== 2 && styles.cardMarginRight]}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.recommendationImageContainer}>
-                        <Image
-                          source={{ uri: 'https://via.placeholder.com/150' }}
-                          style={styles.recommendationImage}
-                          resizeMode="cover"
-                        />
-                        <TouchableOpacity
-                          style={styles.heartButton}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons
-                            name="heart"
-                            size={24}
-                            color="#FF3B30"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.recommendationContent}>
-                        <Text style={styles.recommendationName} numberOfLines={1}>Accessory {item}</Text>
-                        <Text style={styles.recommendationBrand}>Brand</Text>
-                        <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
-                          Product description goes here
-                        </Text>
-                        <Text style={styles.recommendationPrice}>$0.00</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+                  {/* Other Section */}
+                  {favorites.filter(item => item.category === 'other').length > 0 && (
+                    <View style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>Other</Text>
+                      <ScrollView
+                        ref={otherScrollRef}
+                        horizontal
+                        bounces={false}
+                        overScrollMode="never"
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalScrollContent}
+                      >
+                        {favorites.filter(item => item.category === 'other').map((item, index, arr) => {
+                          const isFavorited = favoriteItems.has(item.id);
+                          return (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={[styles.recommendationCard, index !== arr.length - 1 && styles.cardMarginRight]}
+                            activeOpacity={0.8}
+                            onPress={() => handleOpenLink(item.purchase_url, item.name)}
+                          >
+                            <View style={styles.recommendationImageContainer}>
+                              <Image
+                                source={{ uri: item.image_url || 'https://via.placeholder.com/150' }}
+                                style={styles.recommendationImage}
+                                resizeMode="cover"
+                              />
+                              <TouchableOpacity
+                                style={styles.heartButton}
+                                onPress={() => handleToggleFavorite(item)}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons
+                                  name={isFavorited ? 'heart' : 'heart-outline'}
+                                  size={24}
+                                  color={isFavorited ? '#FF3B30' : '#999'}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                            <View style={styles.recommendationContent}>
+                              <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
+                              <Text style={styles.recommendationBrand}>{item.brand}</Text>
+                              <Text style={styles.recommendationDescription} numberOfLines={2} ellipsizeMode="tail">
+                                {item.description}
+                              </Text>
+                              <Text style={styles.recommendationPrice}>{item.price}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </>
+              )}
             </View>
           </View>
         )}
         {activeTab === 'settings' && (
           <View style={styles.settingsContainer}>
-            <Text style={styles.settingsTitle}>Settings</Text>
+            <View style={styles.settingsHeader}>
+              <Text style={styles.settingsTitle}>Settings</Text>
+              <TouchableOpacity
+                onPress={handleSignOut}
+                activeOpacity={0.7}
+                style={styles.signOutButton}
+              >
+                <Ionicons name="log-out-outline" size={24} color="#3a3b3c" />
+              </TouchableOpacity>
+            </View>
 
             {/* Personal Information Section */}
             <View style={styles.settingsSection}>
@@ -447,34 +700,41 @@ export default function HomeScreen({ navigation }) {
                   placeholder="Enter your name"
                   placeholderTextColor="#999"
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={(text) => {
+                    // Remove non-letter characters, trim leading spaces only, collapse multiple spaces
+                    const filtered = text.replace(/[^a-zA-Z\s]/g, '').replace(/^\s+/, '').replace(/\s+/g, ' ');
+                    setName(filtered);
+                  }}
+                  onBlur={() => setName(name.trim())}
                   autoCapitalize="words"
+                  maxLength={10}
                 />
               </View>
 
               <View style={styles.settingsCard}>
                 <Text style={styles.settingsLabel}>Email</Text>
-                <TextInput
-                  style={styles.settingsInput}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#999"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+                <Text
+                  style={[
+                    styles.settingsInput,
+                    !email && { color: '#999' }
+                  ]}
+                  ellipsizeMode="tail"
+                  numberOfLines={1}
+                >
+                  {email || 'Enter your email'}
+                </Text>
               </View>
 
               <View style={styles.settingsCard}>
                 <Text style={styles.settingsLabel}>Birth</Text>
                 <TextInput
                   style={styles.settingsInput}
-                  placeholder="DD/MM/YYYY"
+                  placeholder="YYYY/MM/DD"
                   placeholderTextColor="#999"
                   value={birth}
-                  onChangeText={setBirth}
+                  onChangeText={(text) => setBirth(text.replace(/[^0-9]/g, ''))}
                   keyboardType="number-pad"
-                  maxLength={10}
+                  maxLength={8}
                 />
               </View>
 
@@ -511,8 +771,14 @@ export default function HomeScreen({ navigation }) {
                   placeholder="City, Country"
                   placeholderTextColor="#999"
                   value={location}
-                  onChangeText={setLocation}
+                  onChangeText={(text) => {
+                    // Remove non-letter characters, trim leading spaces only, collapse multiple spaces
+                    const filtered = text.replace(/[^a-zA-Z\s]/g, '').replace(/^\s+/, '').replace(/\s+/g, ' ');
+                    setLocation(filtered);
+                  }}
+                  onBlur={() => setLocation(location.trim())}
                   autoCapitalize="words"
+                  maxLength={25}
                 />
               </View>
 
@@ -523,7 +789,7 @@ export default function HomeScreen({ navigation }) {
                   placeholder="Enter your height"
                   placeholderTextColor="#999"
                   value={height}
-                  onChangeText={setHeight}
+                  onChangeText={(text) => setHeight(text.replace(/[^0-9]/g, ''))}
                   keyboardType="number-pad"
                   maxLength={3}
                 />
@@ -536,9 +802,9 @@ export default function HomeScreen({ navigation }) {
                   placeholder="Enter your weight"
                   placeholderTextColor="#999"
                   value={weight}
-                  onChangeText={setWeight}
-                  keyboardType="decimal-pad"
-                  maxLength={5}
+                  onChangeText={(text) => setWeight(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  maxLength={3}
                 />
               </View>
             </View>
@@ -584,7 +850,7 @@ export default function HomeScreen({ navigation }) {
                       placeholder="Min"
                       placeholderTextColor="#999"
                       value={priceMin}
-                      onChangeText={setPriceMin}
+                      onChangeText={(text) => setPriceMin(text.replace(/[^0-9]/g, ''))}
                       keyboardType="number-pad"
                       maxLength={5}
                     />
@@ -597,7 +863,7 @@ export default function HomeScreen({ navigation }) {
                       placeholder="Max"
                       placeholderTextColor="#999"
                       value={priceMax}
-                      onChangeText={setPriceMax}
+                      onChangeText={(text) => setPriceMax(text.replace(/[^0-9]/g, ''))}
                       keyboardType="number-pad"
                       maxLength={5}
                     />
@@ -693,10 +959,17 @@ export default function HomeScreen({ navigation }) {
                   placeholder="e.g., Nike, Adidas, Zara"
                   placeholderTextColor="#999"
                   value={favoriteBrands}
-                  onChangeText={setFavoriteBrands}
+                  onChangeText={(text) => {
+                    // Remove non-letter characters, trim leading spaces only, collapse multiple spaces
+                    const filtered = text.replace(/[^a-zA-Z\s]/g, '').replace(/^\s+/, '').replace(/\s+/g, ' ');
+                    setFavoriteBrands(filtered);
+                  }}
+                  onBlur={() => setFavoriteBrands(favoriteBrands.trim())}
                   multiline
                   numberOfLines={3}
+                  autoCapitalize="words"
                   textAlignVertical="top"
+                  maxLength={50}
                 />
               </View>
 
@@ -819,21 +1092,31 @@ export default function HomeScreen({ navigation }) {
             {/* Action Buttons */}
             <View style={styles.settingsActions}>
               <TouchableOpacity
-                style={styles.saveButton}
+                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
                 onPress={handleSaveSettings}
                 activeOpacity={0.7}
+                disabled={saving}
               >
-                <Ionicons name="cloud-upload" size={20} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.saveButtonText}>Save Settings</Text>
+                {saving ? (
+                  <>
+                    <ActivityIndicator color="#fff" size="small" style={styles.buttonIcon} />
+                    <Text style={styles.saveButtonText}>Saving...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="cloud-upload" size={20} color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.saveButtonText}>Save Settings</Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.resetButton}
+                style={styles.deleteButton}
                 onPress={handleDeleteAccount}
                 activeOpacity={0.7}
               >
                 <Ionicons name="trash-outline" size={20} color="#FF3B30" style={styles.buttonIcon} />
-                <Text style={styles.resetButtonText}>Delete Account</Text>
+                <Text style={styles.deleteButtonText}>Delete Account</Text>
               </TouchableOpacity>
 
               <Text style={styles.versionFooter}>Version 1.0.0</Text>
@@ -894,6 +1177,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#3a3b3c',
+    marginTop: 16,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#999',
+    marginTop: 12,
+  },
+  emptySubtext: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#ccc',
+  },
   contentContainer: {
     flex: 1,
     backgroundColor: '#fff',
@@ -910,7 +1219,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     letterSpacing: 0.5,
   },
   logo: {
@@ -929,7 +1238,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginBottom: 15,
   },
   horizontalScrollContent: {
@@ -981,7 +1290,7 @@ const styles = StyleSheet.create({
   recommendationName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginBottom: 2,
   },
   recommendationBrand: {
@@ -991,14 +1300,14 @@ const styles = StyleSheet.create({
   },
   recommendationDescription: {
     fontSize: 13,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     lineHeight: 18,
     marginBottom: 4,
   },
   recommendationPrice: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
   },
   navigationBar: {
     flexDirection: 'row',
@@ -1048,12 +1357,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 32,
   },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
   settingsTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     letterSpacing: 0.5,
-    marginBottom: 24,
+  },
+  signOutButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   // Settings page uses proportional spacing (80% scale) for a more compact feel
   // Home sections: 30px spacing with 15px title margin (2:1 ratio)
@@ -1064,7 +1391,7 @@ const styles = StyleSheet.create({
   settingsSectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginBottom: 12,
   },
   settingsCard: {
@@ -1081,12 +1408,12 @@ const styles = StyleSheet.create({
   settingsLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     marginBottom: 8,
   },
   settingsInput: {
     fontSize: 16,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     borderWidth: 1,
     borderColor: '#f0f0f0',
     borderRadius: 8,
@@ -1114,7 +1441,7 @@ const styles = StyleSheet.create({
   splitInput: {
     flex: 1,
     fontSize: 16,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     padding: 12,
     paddingLeft: 0,
   },
@@ -1141,14 +1468,14 @@ const styles = StyleSheet.create({
   },
   pricePrefix: {
     fontSize: 16,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     fontWeight: '600',
     marginRight: 4,
   },
   priceInput: {
     flex: 1,
     fontSize: 16,
-    color: '#3a3b3e',
+    color: '#3a3b3c',
     padding: 12,
     paddingLeft: 0,
   },
@@ -1180,7 +1507,7 @@ const styles = StyleSheet.create({
   styleChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
   },
   styleChipTextSelected: {
     color: '#fff',
@@ -1203,12 +1530,15 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
   saveButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  resetButton: {
+  deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1224,7 +1554,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  resetButtonText: {
+  deleteButtonText: {
     color: '#FF3B30',
     fontSize: 16,
     fontWeight: '600',
@@ -1274,7 +1604,7 @@ const styles = StyleSheet.create({
   linkCardText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3a3b3e',
+    color: '#3a3b3c',
   },
   // Currency and size chip styles
   currencyChip: {
