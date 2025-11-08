@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Alert, Dimensions, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { usePlacement } from 'expo-superwall';
 import { supabase } from './lib/supabase';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
@@ -17,6 +18,37 @@ GoogleSignin.configure({
 export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
 
+  // Setup Superwall paywall
+  const { registerPlacement } = usePlacement({
+    onPresent: (info) => {
+      console.log('Paywall presented:', info);
+    },
+    onDismiss: (info, result) => {
+      console.log('Paywall dismissed:', info, 'Result:', result);
+      // If user completed purchase, you can handle it here
+      if (result?.state === 'purchased') {
+        console.log('User purchased subscription!');
+        // Continue to sign in flow
+        handleGoogleSignIn();
+      }
+    },
+    onError: (error) => {
+      console.error('Paywall error:', error);
+      Alert.alert('Error', 'Failed to show paywall. Please try again.');
+    }
+  });
+
+  const handleGetStarted = async () => {
+    try {
+      // Trigger the paywall - use 'campaign_trigger' or your custom placement
+      await registerPlacement({
+        placement: 'campaign_trigger'
+      });
+    } catch (error) {
+      console.error('Failed to show paywall:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     try {
@@ -24,6 +56,9 @@ export default function AuthScreen() {
 
       // Check if Google Play Services are available (Android)
       await GoogleSignin.hasPlayServices();
+
+      // Sign out first to ensure account picker shows
+      await GoogleSignin.signOut();
 
       // Sign in with Google
       const userInfo = await GoogleSignin.signIn();
@@ -49,7 +84,7 @@ export default function AuthScreen() {
       console.log('Successfully signed in:', data.user.email);
 
       // Navigation will happen automatically via auth state change
-      // in Navigator.js
+      // Keep loading state active until navigation happens - don't set to false
 
     } catch (error) {
       console.error('Sign-in error:', error);
@@ -71,65 +106,73 @@ export default function AuthScreen() {
         errorMessage,
         [{ text: 'OK' }]
       );
-    } finally {
+
+      // Only set loading to false on error
       setLoading(false);
     }
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Logo - matching HomeScreen exact styling */}
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('./assets/logo3.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+      {loading ? (
+        // Loading screen - matching HomeScreen pattern
+        <View style={[styles.container, styles.centerContent]}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
-
-        {/* Welcome Section - card-based like Settings */}
-        <View style={styles.welcomeSection}>
-          <View style={styles.welcomeCard}>
-            <Text style={styles.title}>Welcome to Snazzy AI</Text>
-            <Text style={styles.subtitle}>
-              AI-powered fashion analysis and style recommendations
-            </Text>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo at top */}
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('./assets/logo3.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
-          {/* Sign-In Card */}
-          <View style={styles.signInCard}>
-            <Text style={styles.signInLabel}>Get Started</Text>
+          {/* Screenshot2 under the logo */}
+          <View style={styles.screenshotContainer}>
+            <Image
+              source={require('./assets/screenshot2.png')}
+              style={styles.screenshot}
+              resizeMode="contain"
+            />
+          </View>
+
+          {/* Big tagline text */}
+          <View style={styles.taglineContainer}>
+            <Text style={styles.tagline}>The personal AI stylist in your pocket</Text>
+          </View>
+
+          {/* Get Started button */}
+          <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.googleButton, loading && styles.googleButtonDisabled]}
-              onPress={handleGoogleSignIn}
-              disabled={loading}
+              style={styles.getStartedButton}
+              onPress={handleGetStarted}
               activeOpacity={0.7}
             >
-              {loading ? (
-                <>
-                  <ActivityIndicator size="small" color="#fff" style={styles.googleIcon} />
-                  <Text style={styles.googleButtonText}>Signing in...</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={20} color="#fff" style={styles.googleIcon} />
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
-                </>
-              )}
+              <Text style={styles.getStartedButtonText}>Get Started</Text>
             </TouchableOpacity>
 
-            {/* Privacy Text */}
-            <Text style={styles.privacyText}>
-              By continuing, you agree to our Terms of Service and Privacy Policy
-            </Text>
+            {/* Already have an account text */}
+            <View style={styles.signInContainer}>
+              <Text style={styles.signInText}>Already have an account? </Text>
+              <TouchableOpacity
+                onPress={handleGoogleSignIn}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.signInLink}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
 
       <StatusBar style="dark" />
     </View>
@@ -141,13 +184,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#3a3b3c',
+    marginTop: 16,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 40,
   },
-  // Logo container - matching HomeScreen exact styling
+  // Logo at top - matching HomeScreen exact styling
   logoContainer: {
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -158,58 +212,35 @@ const styles = StyleSheet.create({
     marginTop: -60,
     marginBottom: -100,
   },
-  // Welcome section - matching Settings section spacing
-  welcomeSection: {
+  // Screenshot2 container
+  screenshotContainer: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 32,
-  },
-  // Welcome card - matching Settings card styling
-  welcomeCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
     alignItems: 'center',
+    marginBottom: 30,
   },
-  title: {
-    fontSize: 20,
+  screenshot: {
+    width: width * 0.95,
+    height: 360,
+  },
+  // Tagline text
+  taglineContainer: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  tagline: {
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#3a3b3c',
-    marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#3a3b3c',
-    textAlign: 'center',
-    lineHeight: 22,
+  // Button container
+  buttonContainer: {
+    paddingHorizontal: 20,
   },
-  // Sign-In card - matching Settings card styling
-  signInCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  signInLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3a3b3c',
-    marginBottom: 12,
-  },
-  // Google button - matching Save Settings button styling
-  googleButton: {
+  // Get Started button - matching Save Settings button styling
+  getStartedButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -222,23 +253,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  googleButtonDisabled: {
-    opacity: 0.6,
-  },
-  googleIcon: {
-    marginRight: 8,
-  },
-  googleButtonText: {
+  getStartedButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  privacyText: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
-    lineHeight: 18,
+  // Sign in text container
+  signInContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  signInText: {
+    fontSize: 14,
+    color: '#3a3b3c',
+  },
+  signInLink: {
+    fontSize: 14,
+    color: '#3a3b3c',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
   },
 });

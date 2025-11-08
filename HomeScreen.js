@@ -3,7 +3,6 @@ import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ScrollView
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { SystemBars } from 'react-native-edge-to-edge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 import { getProfile, updateProfile, addFavorite, removeFavorite } from './lib/supabaseHelpers';

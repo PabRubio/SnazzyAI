@@ -5,7 +5,6 @@ import { StatusBar as RNStatusBar } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { SystemBars } from 'react-native-edge-to-edge';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';

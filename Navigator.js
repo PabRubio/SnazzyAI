@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { SuperwallProvider } from 'expo-superwall';
 import { supabase } from './lib/supabase';
 import AuthScreen from './AuthScreen';
 import HomeScreen from './HomeScreen';
@@ -38,36 +39,43 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName={session ? "Home" : "Auth"}
-        screenOptions={{
-          headerShown: false,
-          gestureEnabled: false,
-          animationEnabled: false,
-          cardStyle: { backgroundColor: '#fff' }
-        }}
-      >
-        {!session ? (
-          // Auth Stack - User not logged in
-          <Stack.Screen name="Auth" component={AuthScreen} />
-        ) : (
-          // App Stack - User logged in
-          <>
-            <Stack.Screen name="Home" component={HomeScreen} />
-            <Stack.Screen
-              name="Camera"
-              component={CameraScreen}
-              options={{
-                animationEnabled: true,
-                presentation: 'transparentModal',
-                cardStyle: { backgroundColor: '#3a3b3c' }
-              }}
-            />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SuperwallProvider
+      apiKeys={{
+        ios: process.env.EXPO_PUBLIC_SUPERWALL_API_KEY,
+        android: process.env.EXPO_PUBLIC_SUPERWALL_API_KEY
+      }}
+    >
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName={session ? "Home" : "Auth"}
+          screenOptions={{
+            headerShown: false,
+            gestureEnabled: false,
+            animationEnabled: false,
+            cardStyle: { backgroundColor: '#fff' }
+          }}
+        >
+          {!session ? (
+            // Auth Stack - User not logged in
+            <Stack.Screen name="Auth" component={AuthScreen} />
+          ) : (
+            // App Stack - User logged in
+            <>
+              <Stack.Screen name="Home" component={HomeScreen} />
+              <Stack.Screen
+                name="Camera"
+                component={CameraScreen}
+                options={{
+                  animationEnabled: true,
+                  presentation: 'transparentModal',
+                  cardStyle: { backgroundColor: '#3a3b3c' }
+                }}
+              />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SuperwallProvider>
   );
 }
 
