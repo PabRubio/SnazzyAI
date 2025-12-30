@@ -94,6 +94,10 @@ serve(async (req) => {
     const data = await response.json()
     console.log('Received response from Gemini API')
 
+    const { promptTokenCount = 0, candidatesTokenCount = 0 } = data.usageMetadata || {}
+    const cost = 0.0022 + 0.039 + (promptTokenCount / 1e6 * 0.30) + (candidatesTokenCount / 1e6 * 2.50)
+    console.log(`💰 [Gemini 2.5 Flash] $${cost.toFixed(6)}`)
+
     // Extract the generated image from response
     if (data && data.candidates && data.candidates.length > 0) {
       const candidate = data.candidates[0]

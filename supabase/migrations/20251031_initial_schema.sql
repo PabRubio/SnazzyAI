@@ -27,7 +27,10 @@ CREATE TABLE profiles (
   language TEXT DEFAULT 'English',
   push_notifications BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  response_1 INTEGER,
+  response_2 TEXT,
+  response_3 TEXT
 );
 
 -- Outfit analyses (history of all outfit analyses)
@@ -212,9 +215,11 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = public
 AS $$
+DECLARE
+  user_name TEXT := new.raw_user_meta_data->>'name';
 BEGIN
-  INSERT INTO public.profiles (id, email, created_at, updated_at)
-  VALUES (new.id, new.email, NOW(), NOW());
+  INSERT INTO public.profiles (id, name, email, created_at, updated_at)
+  VALUES (new.id, user_name, new.email, NOW(), NOW());
   RETURN new;
 END;
 $$;

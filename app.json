@@ -33,16 +33,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.pabrubio.snazzy"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "edgeToEdgeEnabled": true
     },
     "extra": {
       "eas": {
         "projectId": "8eb8cc86-6535-4bab-ba2c-0d85818b220c"
-      }
+      },
+      "superwallApiKey": "pk_Eg6xXf9tdLDmLgwI1Yni_"
     },
     "plugins": [
       "react-native-edge-to-edge"
