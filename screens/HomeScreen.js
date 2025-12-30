@@ -696,7 +696,7 @@ export default function HomeScreen({ navigation }) {
           <View>
             <View style={styles.logoContainer}>
               <Image
-                source={require('./assets/logo3-transparent.png')}
+                source={require('../assets/logo3-transparent.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -1461,7 +1461,7 @@ export default function HomeScreen({ navigation }) {
           activeOpacity={0.7}
         >
           <Image
-            source={require('./assets/logo.png')}
+            source={require('../assets/logo.png')}
             style={styles.plusIconContainer}
             resizeMode="cover"
           />

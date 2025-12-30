@@ -126,7 +126,7 @@ export default function AuthScreen({ navigation }) {
           {/* Logo at top */}
           <View style={styles.logoContainer}>
             <Image
-              source={require('./assets/logo3-transparent.png')}
+              source={require('../assets/logo3-transparent.png')}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -155,7 +155,7 @@ export default function AuthScreen({ navigation }) {
           {/* Screenshot2 under the logo */}
           <View style={styles.screenshotContainer}>
             <Image
-              source={require('./assets/screenshot-transparent.png')}
+              source={require('../assets/screenshot-transparent.png')}
               style={styles.screenshot}
               resizeMode="contain"
             />
