@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking } from 'react-native';
+import Text from '../components/Text';
 import { CameraView } from 'expo-camera';
+import { StatusBar } from 'expo-status-bar';
 import { StatusBar as RNStatusBar } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import BottomSheet from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,7 +57,10 @@ export default function FreeTrialScreen({ navigation }) {
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
   const [hasGeneratedRecommendations, setHasGeneratedRecommendations] = useState(false);
   const [recommendationClickCount, setRecommendationClickCount] = useState(0);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [showInstruction, setShowInstruction] = useState(true);
   const cameraRef = useRef(null);
+  const insets = useSafeAreaInsets();
   const captureTimerRef = useRef(null);
   const hapticIntervalRef = useRef(null);
   const delayedCaptureRef = useRef(null);
@@ -204,8 +209,8 @@ export default function FreeTrialScreen({ navigation }) {
 
       const userProfile = {
         gender: onboardingData.gender,
-        favorite_brands: onboardingData.favoriteBrands || [],
         favorite_styles: onboardingData.favoriteStyles || [],
+        favorite_brands: onboardingData.favoriteBrands || [],
       };
 
       const { data, error } = await supabase.functions.invoke('search-products-2', {
@@ -481,8 +486,8 @@ export default function FreeTrialScreen({ navigation }) {
         // Build user profile from onboarding data for personalization
         const userProfile = {
           gender: onboardingData.gender,
-          favorite_brands: onboardingData.favoriteBrands || [],
           favorite_styles: onboardingData.favoriteStyles || [],
+          favorite_brands: onboardingData.favoriteBrands || [],
         };
 
         // Call Supabase edge function for outfit analysis
@@ -695,7 +700,7 @@ export default function FreeTrialScreen({ navigation }) {
       opacity: borderOpacity.value,
     };
   });
-  
+
   const borderGradientStyle = useAnimatedStyle(() => {
     const intensity = interpolate(
       borderPulse.value,
@@ -706,6 +711,8 @@ export default function FreeTrialScreen({ navigation }) {
       opacity: intensity,
     };
   });
+
+  const placeholderPaddingBottom = analysisResult?.isValidPhoto ? 15 : insets.bottom + 12;
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -729,9 +736,9 @@ export default function FreeTrialScreen({ navigation }) {
           // Show camera view when no photo is captured
           <>
             <CameraView
+              facing="back"
               ref={cameraRef}
               style={StyleSheet.absoluteFillObject}
-              facing="back"
               faceDetectorSettings={{
                 mode: 'none',
               }}
@@ -742,6 +749,25 @@ export default function FreeTrialScreen({ navigation }) {
                 }, 500);
               }}
             />
+            {/* Corner Brackets */}
+            <View style={styles.cornerBracketsContainer} pointerEvents="none">
+              <View style={[styles.cornerBracket, styles.cornerTopLeft]} />
+              <View style={[styles.cornerBracket, styles.cornerTopRight]} />
+              <View style={[styles.cornerBracket, styles.cornerBottomLeft]} />
+              <View style={[styles.cornerBracket, styles.cornerBottomRight]} />
+            </View>
+            {isCameraReady && showInstruction && (
+              <View style={styles.instructionContainer}>
+                <TouchableOpacity
+                  style={styles.instructionCloseButton}
+                  onPress={() => setShowInstruction(false)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={18} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.instructionText}>Hold the capture button for 2 seconds to take a picture</Text>
+              </View>
+            )}
           </>
         )}
         
@@ -809,7 +835,18 @@ export default function FreeTrialScreen({ navigation }) {
                 <View style={styles.resultHeader}>
                   <Text style={styles.outfitName}>{analysisResult.outfitName}</Text>
                   <Text style={styles.rating}>⭐ {analysisResult.rating}/10</Text>
-                  <Text style={styles.shortDescription} numberOfLines={2} ellipsizeMode="tail">{analysisResult.shortDescription}</Text>
+                  <Text
+                    style={styles.shortDescription}
+                    numberOfLines={isDescriptionExpanded ? undefined : 2}
+                    ellipsizeMode="tail"
+                  >
+                    {analysisResult.shortDescription}
+                  </Text>
+                  <TouchableOpacity onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
+                    <Text style={styles.seeMoreText}>
+                      {isDescriptionExpanded ? 'see less' : 'see more'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Recommendations Section - Always visible */}
@@ -852,7 +889,7 @@ export default function FreeTrialScreen({ navigation }) {
                   ) : (
                     /* Show placeholder when no recommendations generated yet */
                     !hasGeneratedRecommendations && (
-                      <View style={styles.placeholderContainer}>
+                      <View style={[styles.placeholderContainer, { paddingBottom: placeholderPaddingBottom }]}>
                         <Ionicons name="shirt-outline" size={48} color="#ccc" />
                         <Text style={styles.placeholderText}>Nothing to see here ;)</Text>
                       </View>
@@ -862,7 +899,7 @@ export default function FreeTrialScreen({ navigation }) {
 
                 {/* Generate Recommendations Button - At the very bottom */}
                 {!hasGeneratedRecommendations && analysisResult.isValidPhoto && (
-                  <View style={styles.generateButtonContainer}>
+                  <View style={{ paddingBottom: insets.bottom + 12 }}>
                     <TouchableOpacity
                       style={[
                         styles.generateButton,
@@ -875,17 +912,17 @@ export default function FreeTrialScreen({ navigation }) {
                       {isGeneratingRecommendations ? (
                         <>
                           <ActivityIndicator size="small" color="#fff" style={styles.buttonLoader} />
-                          <Text style={styles.generateButtonText}>Fetching Recommendations</Text>
+                          <Text style={styles.generateButtonText} numberOfLines={1}>Fetching Recommendations</Text>
                         </>
                       ) : isSigningIn ? (
                         <>
                           <ActivityIndicator size="small" color="#fff" style={styles.buttonLoader} />
-                          <Text style={styles.generateButtonText}>Fetching Recommendations</Text>
+                          <Text style={styles.generateButtonText} numberOfLines={1}>Fetching Recommendations</Text>
                         </>
                       ) : (
                         <>
                           <Image source={require('../assets/logo-google.png')} style={styles.googleIconImage} />
-                          <Text style={styles.generateButtonText}>Generate Recommendations</Text>
+                          <Text style={styles.generateButtonText} numberOfLines={1}>Generate Recommendations</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -893,7 +930,7 @@ export default function FreeTrialScreen({ navigation }) {
                 )}
 
                 {hasGeneratedRecommendations && (
-                  <View style={styles.regenerateButtonContainer}>
+                  <View style={{ paddingBottom: insets.bottom + 12 }}>
                     <TouchableOpacity
                       style={styles.generateButton}
                       onPress={showPaywall}
@@ -923,7 +960,7 @@ const styles = StyleSheet.create({
   },
   captureButtonContainer: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 70,
     alignSelf: 'center',
     width: BUTTON_SIZE,
     height: BUTTON_SIZE,
@@ -965,7 +1002,7 @@ const styles = StyleSheet.create({
   bottomSheetContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 30,
+    flexGrow: 1,
   },
   loadingContent: {
     alignItems: 'center',
@@ -973,7 +1010,7 @@ const styles = StyleSheet.create({
   },
   loadingTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginTop: 16,
     marginBottom: 4,
@@ -989,7 +1026,7 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#FF3B30',
     marginBottom: 8,
   },
@@ -1014,7 +1051,7 @@ const styles = StyleSheet.create({
   },
   rating: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#007AFF',
     marginBottom: 12,
   },
@@ -1023,12 +1060,10 @@ const styles = StyleSheet.create({
     color: '#3a3b3c',
     lineHeight: 22,
   },
-  generateButtonContainer: {
-    marginTop: 96,
-    marginBottom: 20,
-  },
-  regenerateButtonContainer: {
-    marginBottom: 30,
+  seeMoreText: {
+    fontSize: 14,
+    color: '#007AFF',
+    marginTop: 4,
   },
   generateButton: {
     flexDirection: 'row',
@@ -1051,7 +1086,7 @@ const styles = StyleSheet.create({
   generateButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   buttonIcon: {
     marginRight: 8,
@@ -1070,21 +1105,19 @@ const styles = StyleSheet.create({
   },
   recommendationsTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#3a3b3c',
     marginBottom: 15,
+    fontWeight: '500',
+    color: '#3a3b3c',
   },
   placeholderContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    marginTop: 62,
-    minHeight: 150,
   },
   placeholderText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#999',
     marginTop: 12,
   },
@@ -1130,7 +1163,7 @@ const styles = StyleSheet.create({
   },
   recommendationName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginBottom: 2,
   },
@@ -1147,7 +1180,7 @@ const styles = StyleSheet.create({
   },
   recommendationPrice: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: '#3a3b3c',
   },
   recommendationSeparator: {
@@ -1202,10 +1235,72 @@ const styles = StyleSheet.create({
   overlayTitle: {
     alignSelf: 'center',
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: '#fff',
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  cornerBracketsContainer: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    right: '10%',
+    bottom: '30%',
+  },
+  cornerBracket: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderColor: '#fff',
+  },
+  cornerTopLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 20,
+  },
+  cornerTopRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderTopRightRadius: 20,
+  },
+  cornerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderBottomLeftRadius: 20,
+  },
+  cornerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderBottomRightRadius: 20,
+  },
+  instructionContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(58, 59, 60, 0.5)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  instructionCloseButton: {
+    marginRight: 12,
+  },
+  instructionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#fff',
+    flex: 1,
   },
 });

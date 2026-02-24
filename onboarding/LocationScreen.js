@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
+import Text from '../components/Text';
+import { StyleSheet, View, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
   },
   locationButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#007AFF',
   },
   locationResult: {
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
   },
   bottomBar: {
@@ -255,6 +256,6 @@ const styles = StyleSheet.create({
   continueButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
 });

@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ScrollView, TextInput, Alert, Keyboard, Switch, Linking, ActivityIndicator, Platform } from 'react-native';
+import Text from '../components/Text';
+import TextInput from '../components/TextInput';
+import { StyleSheet, View, TouchableOpacity, Dimensions, Image, ScrollView, Alert, Keyboard, Switch, Linking, ActivityIndicator, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCameraPermissions } from 'expo-camera';
 import * as Notifications from 'expo-notifications';
@@ -67,8 +69,8 @@ export default function HomeScreen({ navigation }) {
   const [shirtSize, setShirtSize] = useState('');
   const [pantsSize, setPantsSize] = useState('');
   const [shoeSize, setShoeSize] = useState('');
+  const [favoriteStyles, setFavoriteStyles] = useState('');
   const [favoriteBrands, setFavoriteBrands] = useState('');
-  const [favoriteStyles, setFavoriteStyles] = useState([]);
 
   // General Settings
   const [language, setLanguage] = useState('English');
@@ -117,7 +119,7 @@ export default function HomeScreen({ navigation }) {
         setPantsSize(profile.pants_size || '');
         setShoeSize(profile.shoe_size || '');
         setFavoriteBrands(profile.favorite_brands?.join(', ') || '');
-        setFavoriteStyles(profile.favorite_styles || []);
+        setFavoriteStyles(profile.favorite_styles?.join(', ') || '');
         setLanguage(profile.language || 'English');
 
         // Sync notification toggle with actual permission status
@@ -169,7 +171,6 @@ export default function HomeScreen({ navigation }) {
   };
 
   // Predefined options
-  const styleOptions = ['Casual', 'Formal', 'Old-Money', 'Sporty', 'Streetwear', 'Minimalist'];
   const genderOptions = ['Male', 'Female', 'Other'];
   const currencyOptions = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD'];
   const languageOptions = ['English', 'Spanish'];
@@ -202,15 +203,6 @@ export default function HomeScreen({ navigation }) {
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const year = selectedDate.getFullYear();
       setBirth(`${day}/${month}/${year}`);
-    }
-  };
-
-  // Toggle selection helpers
-  const toggleStyle = async (style) => {
-    if (favoriteStyles.includes(style)) {
-      setFavoriteStyles(favoriteStyles.filter(s => s !== style));
-    } else {
-      setFavoriteStyles([...favoriteStyles, style]);
     }
   };
 
@@ -361,6 +353,12 @@ export default function HomeScreen({ navigation }) {
     try {
       setSaving(true);
 
+      // Parse favorite styles from comma-separated string to array
+      const stylesArray = favoriteStyles
+        .split(',')
+        .map(style => style.trim())
+        .filter(style => style.length > 0);
+
       // Parse favorite brands from comma-separated string to array
       const brandsArray = favoriteBrands
         .split(',')
@@ -416,14 +414,14 @@ export default function HomeScreen({ navigation }) {
         return;
       }
 
-      if (brandsArray.length === 0) {
-        Alert.alert('Favorite Brands Required', 'Please enter at least one favorite brand.', [{ text: 'OK' }]);
+      if (stylesArray.length === 0) {
+        Alert.alert('Favorite Styles Required', 'Please enter at least one favorite style.', [{ text: 'OK' }]);
         setSaving(false);
         return;
       }
 
-      if (favoriteStyles.length === 0) {
-        Alert.alert('Favorite Styles Required', 'Please select at least one favorite style.', [{ text: 'OK' }]);
+      if (brandsArray.length === 0) {
+        Alert.alert('Favorite Brands Required', 'Please enter at least one favorite brand.', [{ text: 'OK' }]);
         setSaving(false);
         return;
       }
@@ -497,8 +495,8 @@ export default function HomeScreen({ navigation }) {
         shirt_size: shirtSize || null,
         pants_size: pantsSize || null,
         shoe_size: shoeSize || null,
+        favorite_styles: stylesArray,
         favorite_brands: brandsArray,
-        favorite_styles: favoriteStyles,
         language,
         push_notifications: pushNotifications,
       });
@@ -1249,6 +1247,44 @@ export default function HomeScreen({ navigation }) {
               </View>
 
               <View style={styles.settingsCard}>
+                <Text style={styles.settingsLabel}>Favorite Styles</Text>
+                <TextInput
+                  style={[styles.settingsInput, styles.textAreaInput]}
+                  placeholder="e.g., Old-Money style"
+                  placeholderTextColor="#999"
+                  value={favoriteStyles}
+                  onChangeText={(text) => {
+                    // Allow only letters, spaces, commas, and hyphens
+                    let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
+
+                    // Remove leading commas and spaces
+                    filtered = filtered.replace(/^[,\s]+/, '');
+
+                    // Collapse multiple spaces into one
+                    filtered = filtered.replace(/\s+/g, ' ');
+
+                    // Collapse multiple commas into one
+                    filtered = filtered.replace(/,+/g, ',');
+
+                    // Remove spaces before commas
+                    filtered = filtered.replace(/\s+,/g, ',');
+
+                    // Ensure comma is always followed by a space
+                    filtered = filtered.replace(/,(?!\s)/g, ', ');
+
+                    setFavoriteStyles(filtered);
+                  }}
+                  onBlur={() => setFavoriteStyles(favoriteStyles.replace(/[,\s]+$/, ''))}
+                  multiline
+                  numberOfLines={3}
+                  autoCapitalize="words"
+                  textAlignVertical="top"
+                  blurOnSubmit={true}
+                  maxLength={100}
+                />
+              </View>
+
+              <View style={styles.settingsCard}>
                 <Text style={styles.settingsLabel}>Favorite Brands</Text>
                 <TextInput
                   style={[styles.settingsInput, styles.textAreaInput]}
@@ -1284,35 +1320,6 @@ export default function HomeScreen({ navigation }) {
                   blurOnSubmit={true}
                   maxLength={100}
                 />
-              </View>
-
-              <View style={styles.settingsCard}>
-                <View style={styles.labelWithIcon}>
-                  <Text style={[styles.settingsLabel, { marginBottom: 0 }]}>Favorite Styles</Text>
-                  <Ionicons name="construct-outline" size={16} color="#999" style={{ marginLeft: 6 }} />
-                </View>
-                <View style={styles.styleChipsContainer}>
-                  {styleOptions.map((style) => (
-                    <TouchableOpacity
-                      key={style}
-                      style={[
-                        styles.styleChip,
-                        favoriteStyles.includes(style) && styles.styleChipSelected
-                      ]}
-                      onPress={() => toggleStyle(style)}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          styles.styleChipText,
-                          favoriteStyles.includes(style) && styles.styleChipTextSelected
-                        ]}
-                      >
-                        {style}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
               </View>
             </View>
 
@@ -1501,7 +1508,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#999',
     marginTop: 12,
   },
@@ -1539,7 +1546,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginBottom: 15,
   },
@@ -1593,7 +1600,7 @@ const styles = StyleSheet.create({
   },
   recommendationName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginBottom: 2,
   },
@@ -1610,7 +1617,7 @@ const styles = StyleSheet.create({
   },
   recommendationPrice: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: '#3a3b3c',
   },
   navigationBar: {
@@ -1696,7 +1703,7 @@ const styles = StyleSheet.create({
   },
   settingsSectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginBottom: 12,
   },
@@ -1715,7 +1722,7 @@ const styles = StyleSheet.create({
   },
   settingsLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginBottom: 8,
   },
@@ -1798,7 +1805,7 @@ const styles = StyleSheet.create({
   splitInputUnit: {
     fontSize: 14,
     color: '#999',
-    fontWeight: '600',
+    fontWeight: '500',
     marginLeft: 4,
   },
   priceRangeContainer: {
@@ -1819,7 +1826,7 @@ const styles = StyleSheet.create({
   pricePrefix: {
     fontSize: 16,
     color: '#3a3b3c',
-    fontWeight: '600',
+    fontWeight: '500',
     marginRight: 4,
   },
   priceInput: {
@@ -1832,7 +1839,7 @@ const styles = StyleSheet.create({
   priceSeparator: {
     fontSize: 16,
     color: '#999',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   styleChipsContainer: {
     flexDirection: 'row',
@@ -1856,7 +1863,7 @@ const styles = StyleSheet.create({
   },
   styleChipText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
   },
   styleChipTextSelected: {
@@ -1887,7 +1894,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   deleteButton: {
     flexDirection: 'row',
@@ -1908,7 +1915,7 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: '#FF3B30',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   buttonIcon: {
     marginRight: 8,
@@ -1956,7 +1963,7 @@ const styles = StyleSheet.create({
   },
   linkCardText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
   },
   // Currency and size chip styles

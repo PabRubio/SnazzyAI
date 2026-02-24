@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Alert, Dimensions, ScrollView } from 'react-native';
+import Text from '../components/Text';
+import { StyleSheet, View, TouchableOpacity, Image, ActivityIndicator, Alert, Dimensions, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlacement } from 'expo-superwall';
 import { supabase } from '../services/supabase';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -19,6 +21,7 @@ export default function AuthScreen({ navigation }) {
   const [language, setLanguage] = useState('en');
   const [loading, setLoading] = useState(false);
   const { switchToAppStack } = useNavigation();
+  const insets = useSafeAreaInsets();
 
   // Setup Superwall paywall
   const { registerPlacement } = usePlacement({
@@ -123,53 +126,50 @@ export default function AuthScreen({ navigation }) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo at top */}
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../assets/logo3-transparent.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
+          <View>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../assets/logo3-transparent.png')}
+                resizeMode="contain"
+                style={styles.logo}
+              />
+            </View>
 
-          {/* Language Toggle */}
-          <View style={styles.languageToggleContainer}>
-            <View style={styles.languageToggle}>
-              <TouchableOpacity
-                style={[styles.languageOption, language === 'en' && styles.languageOptionActive]}
-                onPress={() => setLanguage('en')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.flagEmoji}>🇺🇸</Text><Text style={styles.langText}> EN</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.languageOption, language === 'es' && styles.languageOptionActive]}
-                onPress={() => setLanguage('es')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.flagEmoji}>🇪🇸</Text><Text style={styles.langText}> ES</Text>
-              </TouchableOpacity>
+            <View style={styles.languageToggleContainer}>
+              <View style={styles.languageToggle}>
+                <TouchableOpacity
+                  style={[styles.languageOption, language === 'en' && styles.languageOptionActive]}
+                  onPress={() => setLanguage('en')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.flagEmoji}>🇺🇸</Text><Text style={styles.langText}> EN</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.languageOption, language === 'es' && styles.languageOptionActive]}
+                  onPress={() => setLanguage('es')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.flagEmoji}>🇪🇸</Text><Text style={styles.langText}> ES</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
-          {/* Screenshot2 under the logo */}
-          <View style={styles.screenshotContainer}>
-            <Image
-              source={require('../assets/screenshot-transparent.png')}
-              style={styles.screenshot}
-              resizeMode="contain"
-            />
+          <View style={styles.screenshotWrapper}>
+            <View style={styles.screenshotContainer}>
+              <Image
+                source={require('../assets/screenshot-transparent.png')}
+                style={styles.screenshot}
+                resizeMode="contain"
+              />
+            </View>
           </View>
 
-          {/* Big tagline text */}
-          <View style={styles.taglineContainer}>
+          <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 12 }]}>
             <Text style={styles.tagline}>{language === 'en'
               ? 'The personal AI stylist in your pocket'
               : 'El estilista personal de IA en tu bolsillo'}</Text>
-          </View>
 
-          {/* Get Started button */}
-          <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={styles.getStartedButton}
               onPress={handleGetStarted}
@@ -180,7 +180,6 @@ export default function AuthScreen({ navigation }) {
                 : 'Comenzar'}</Text>
             </TouchableOpacity>
 
-            {/* Already have an account text */}
             <View style={styles.signInContainer}>
               <Text style={styles.signInText}>{language === 'en'
                 ? 'Already have an account? '
@@ -215,7 +214,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginTop: 16,
   },
@@ -224,7 +223,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40,
+    minHeight: '100%',
+  },
+  screenshotWrapper: {
+    justifyContent: 'center',
+    flex: 1,
+  },
+  buttonContainer: {
+    paddingHorizontal: 20,
   },
   // Logo at top - matching HomeScreen exact styling
   logoContainer: {
@@ -275,29 +281,19 @@ const styles = StyleSheet.create({
   screenshotContainer: {
     paddingHorizontal: 20,
     alignItems: 'center',
-    marginBottom: 20,
   },
   screenshot: {
     width: width * 0.95,
-    marginBottom: -30,
     height: 360,
   },
   // Tagline text
-  taglineContainer: {
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
   tagline: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#3a3b3c',
     textAlign: 'center',
     letterSpacing: 0.5,
-  },
-  // Button container
-  buttonContainer: {
-    paddingHorizontal: 20,
+    marginBottom: 16,
   },
   // Get Started button - matching Save Settings button styling
   getStartedButton: {
@@ -318,7 +314,7 @@ const styles = StyleSheet.create({
   getStartedButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   // Sign in text container
   signInContainer: {

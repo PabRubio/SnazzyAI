@@ -74,12 +74,12 @@ export default function OnboardingNavigator() {
         component={ClothingSizesScreen}
       />
       <OnboardingStack.Screen
-        name="OnboardingFavoriteBrands"
-        component={FavoriteBrandsScreen}
-      />
-      <OnboardingStack.Screen
         name="OnboardingFavoriteStyles"
         component={FavoriteStylesScreen}
+      />
+      <OnboardingStack.Screen
+        name="OnboardingFavoriteBrands"
+        component={FavoriteBrandsScreen}
       />
       <OnboardingStack.Screen
         name="OnboardingQuestionnaire3"

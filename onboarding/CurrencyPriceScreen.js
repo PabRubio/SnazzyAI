@@ -1,5 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert } from 'react-native';
+import Text from '../components/Text';
+import TextInput from '../components/TextInput';
+import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -204,7 +206,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginBottom: 12,
   },
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
   },
   chipTextSelected: {
@@ -254,7 +256,7 @@ const styles = StyleSheet.create({
   pricePrefix: {
     fontSize: 16,
     color: '#3a3b3c',
-    fontWeight: '600',
+    fontWeight: '500',
     marginRight: 4,
   },
   priceInput: {
@@ -267,7 +269,7 @@ const styles = StyleSheet.create({
   priceSeparator: {
     fontSize: 16,
     color: '#999',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   bottomBar: {
     paddingHorizontal: 20,
@@ -302,6 +304,6 @@ const styles = StyleSheet.create({
   continueButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
 });

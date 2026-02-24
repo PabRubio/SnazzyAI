@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import Text from '../components/Text';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
   },
   optionChipText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
   },
   optionChipTextSelected: {
@@ -212,6 +213,6 @@ const styles = StyleSheet.create({
   continueButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
 });

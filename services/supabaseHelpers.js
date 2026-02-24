@@ -277,18 +277,14 @@ export const getFavorites = async () => {
  * Save virtual try-on result
  * @param {string} originalPhotoUrl - Original photo URL
  * @param {string} productImageUrl - Product image URL
- * @param {string} resultImageBase64 - Result image base64
+ * @param {string} resultImageUrl - Result image URL
  * @returns {Promise<string>} - Try-on result ID
  */
-export const saveTryOnResult = async (originalPhotoUrl, productImageUrl, resultImageBase64) => {
+export const saveTryOnResult = async (originalPhotoUrl, productImageUrl, resultImageUrl) => {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
-    // Upload result image to storage
-    const { url: resultImageUrl } = await uploadPhoto(resultImageBase64, 'try-on-results')
-
-    // Save to database
     const { data, error } = await supabase
       .from('try_on_results')
       .insert({

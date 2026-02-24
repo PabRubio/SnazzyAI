@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import Text from '../components/Text';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,7 +54,7 @@ export default function TrialExplainerScreen({ navigation }) {
           <View style={styles.featuresList}>
             <View style={styles.featureItem}>
               <Ionicons name="camera-outline" size={24} color="#007AFF" />
-              <Text style={styles.featureText}>Take a mirror selfie of your Fit-Check</Text>
+              <Text style={styles.featureText}>Take a mirror selfie of your #FitCheck</Text>
             </View>
             <View style={styles.featureItem}>
               <Ionicons name="star-outline" size={24} color="#007AFF" />
@@ -188,7 +189,7 @@ const styles = StyleSheet.create({
   continueButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   buttonIcon: {
     marginLeft: 8,

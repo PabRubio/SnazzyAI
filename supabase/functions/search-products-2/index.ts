@@ -139,12 +139,12 @@ serve(async (req) => {
         preferences.push(`Location: ${userProfile.location}`)
       }
 
-      if (userProfile.favorite_brands && userProfile.favorite_brands.length > 0) {
-        preferences.push(`Favorite brands: ${userProfile.favorite_brands.join(', ')}`)
+      if (userProfile.favorite_styles && userProfile.favorite_styles.length > 0) {
+        preferences.push(`Favorite styles: ${userProfile.favorite_styles.join(', ')}`)
       }
 
-      if (userProfile.favorite_styles && userProfile.favorite_styles.length > 0) {
-        preferences.push(`Preferred styles: ${userProfile.favorite_styles.join(', ')}`)
+      if (userProfile.favorite_brands && userProfile.favorite_brands.length > 0) {
+        preferences.push(`Favorite brands: ${userProfile.favorite_brands.join(', ')}`)
       }
 
       if (preferences.length > 0) {

@@ -1,22 +1,24 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, Keyboard } from 'react-native';
+import Text from '../components/Text';
+import TextInput from '../components/TextInput';
+import { StyleSheet, View, TouchableOpacity, Keyboard } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from './OnboardingContext';
 
 const TOTAL_STEPS = 15;
-const CURRENT_STEP = 11;
+const CURRENT_STEP = 12;
 
-const POPULAR_BRANDS = ['Nike', 'Adidas', 'Uniqlo', 'Zara', 'H&M', 'Calvin Klein', 'Ralph Lauren', 'Tommy Hilfiger'];
+const POPULAR_BRANDS = ['Nike', 'Adidas', 'Zara', 'Uniqlo', 'H&M', 'Mango', 'Calvin Klein', 'Ralph Lauren'];
 
 export default function FavoriteBrandsScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
   const insets = useSafeAreaInsets();
 
   const handleContinue = () => {
-    Keyboard.dismiss();
-    navigation.navigate('OnboardingFavoriteStyles');
+    Keyboard.dismiss(); // Dismiss keyboard
+    navigation.navigate('OnboardingQuestionnaire3');
   };
 
   const handleBack = () => {
@@ -190,7 +192,7 @@ const styles = StyleSheet.create({
   },
   popularLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
     marginBottom: 12,
   },
@@ -204,8 +206,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#f5f5f5',
-    borderWidth: 1,
     borderColor: '#f0f0f0',
+    borderWidth: 1,
   },
   brandChipSelected: {
     backgroundColor: '#007AFF',
@@ -213,7 +215,7 @@ const styles = StyleSheet.create({
   },
   brandChipText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
   },
   brandChipTextSelected: {
@@ -252,6 +254,6 @@ const styles = StyleSheet.create({
   continueButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
 });

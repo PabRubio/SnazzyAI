@@ -42,7 +42,9 @@
       "superwallApiKey": "pk_Eg6xXf9tdLDmLgwI1Yni_"
     },
     "plugins": [
-      "react-native-edge-to-edge"
+      "react-native-edge-to-edge",
+      "expo-font",
+      "expo-video"
     ]
   }
 }

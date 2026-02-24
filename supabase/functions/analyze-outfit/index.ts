@@ -61,13 +61,13 @@ STRICT VALIDATION RULES - ALL MUST BE TRUE:
 - REJECT photos of: rooms, furniture, objects, plants, tools, landscapes, animals, food, etc.
 - If ANY requirement is missing, set "isValidPhoto": false and return minimal data
 
-Analyze and rate this outfit (first date at a nice coffee shop).
+Analyze and rate this outfit (use fashion best practices).
 
 Return a JSON response:
 {
-  "outfitName": "creative name for the outfit (max 3 words)" OR "Invalid Photo" if not valid,
-  "shortDescription": "fashion review description (must be 10-15 words exactly)" OR "Photo does not show a person wearing an outfit (full body)" if invalid,
-  "rating": number from 1-10 (be generous with ratings) OR 0 if invalid photo,
+  "outfitName": "fashion style category (max 3 words)" OR "Invalid Photo" if invalid photo,
+  "shortDescription": "fashion review description (must be 10-15 words exactly)" OR "Photo does not show a person wearing an outfit (full-body)!!!" if invalid photo,
+  "rating": number from 1-10 (be generous) OR 0 if invalid photo,
   "isValidPhoto": true ONLY if ALL requirements met, false otherwise
 }`
             }

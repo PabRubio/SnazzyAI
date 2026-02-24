@@ -1,33 +1,41 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import Text from '../components/Text';
+import TextInput from '../components/TextInput';
+import { StyleSheet, View, TouchableOpacity, Keyboard } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from './OnboardingContext';
 
 const TOTAL_STEPS = 15;
-const CURRENT_STEP = 12;
+const CURRENT_STEP = 11;
 
-const STYLE_OPTIONS = ['Casual', 'Formal', 'Old-Money', 'Sporty', 'Streetwear', 'Minimalist'];
+const STYLE_OPTIONS = ['Casual', 'Formal', 'Streetwear', 'Sporty'];
 
 export default function FavoriteStylesScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
   const insets = useSafeAreaInsets();
 
-  const toggleStyle = (style) => {
-    if (data.favoriteStyles.includes(style)) {
-      updateData({ favoriteStyles: data.favoriteStyles.filter(s => s !== style) });
-    } else {
-      updateData({ favoriteStyles: [...data.favoriteStyles, style] });
-    }
-  };
-
   const handleContinue = () => {
-    navigation.navigate('OnboardingQuestionnaire3');
+    Keyboard.dismiss(); // Dismiss keyboard
+    navigation.navigate('OnboardingFavoriteBrands');
   };
 
   const handleBack = () => {
     navigation.goBack();
+  };
+
+  const toggleStyle = (style) => {
+    const currentStyles = data.favoriteStyles || [];
+    if (currentStyles.includes(style)) {
+      updateData({ favoriteStyles: currentStyles.filter(s => s !== style) });
+    } else {
+      updateData({ favoriteStyles: [...currentStyles, style] });
+    }
+  };
+
+  const isStyleSelected = (style) => {
+    return (data.favoriteStyles || []).includes(style);
   };
 
   const progress = CURRENT_STEP / TOTAL_STEPS;
@@ -55,13 +63,39 @@ export default function FavoriteStylesScreen({ navigation }) {
         <View style={styles.content}>
           <Text style={styles.title}>Favorite styles?</Text>
 
-          <View style={styles.optionsContainer}>
+          <View style={styles.inputGroup}>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Old-Money style"
+              placeholderTextColor="#999"
+              value={(data.favoriteStyles || []).join(', ')}
+              onChangeText={(text) => {
+                let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
+                filtered = filtered.replace(/^[,\s]+/, '');
+                filtered = filtered.replace(/\s+/g, ' ');
+                filtered = filtered.replace(/,+/g, ',');
+                filtered = filtered.replace(/\s+,/g, ',');
+                filtered = filtered.replace(/,(?!\s)/g, ', ');
+                const stylesArray = filtered.split(',').map(s => s.trim()).filter(s => s);
+                updateData({ favoriteStyles: stylesArray });
+              }}
+              multiline
+              numberOfLines={3}
+              autoCapitalize="words"
+              textAlignVertical="top"
+              blurOnSubmit={true}
+              maxLength={100}
+            />
+          </View>
+
+          <Text style={styles.popularLabel}>Popular styles</Text>
+          <View style={styles.stylesContainer}>
             {STYLE_OPTIONS.map((style) => (
               <TouchableOpacity
                 key={style}
                 style={[
                   styles.styleChip,
-                  data.favoriteStyles.includes(style) && styles.styleChipSelected,
+                  isStyleSelected(style) && styles.styleChipSelected,
                 ]}
                 onPress={() => toggleStyle(style)}
                 activeOpacity={0.7}
@@ -69,7 +103,7 @@ export default function FavoriteStylesScreen({ navigation }) {
                 <Text
                   style={[
                     styles.styleChipText,
-                    data.favoriteStyles.includes(style) && styles.styleChipTextSelected,
+                    isStyleSelected(style) && styles.styleChipTextSelected,
                   ]}
                 >
                   {style}
@@ -82,10 +116,10 @@ export default function FavoriteStylesScreen({ navigation }) {
         {/* Bottom bar with Continue button */}
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
-            style={[styles.continueButton, data.favoriteStyles.length === 0 && styles.continueButtonDisabled]}
+            style={[styles.continueButton, !(data.favoriteStyles || []).length && styles.continueButtonDisabled]}
             onPress={handleContinue}
             activeOpacity={0.7}
-            disabled={data.favoriteStyles.length === 0}
+            disabled={!(data.favoriteStyles || []).length}
           >
             <Text style={styles.continueButtonText}>Continue</Text>
           </TouchableOpacity>
@@ -142,21 +176,38 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 24,
   },
-  optionsContainer: {
+  inputGroup: {
+    marginBottom: 20,
+  },
+  input: {
+    fontSize: 16,
+    color: '#3a3b3c',
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    minHeight: 80,
+    paddingTop: 12,
+  },
+  popularLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#3a3b3c',
+    marginBottom: 12,
+  },
+  stylesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 4,
   },
   styleChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#f5f5f5',
-    borderWidth: 1,
     borderColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
   },
   styleChipSelected: {
     backgroundColor: '#007AFF',
@@ -164,7 +215,7 @@ const styles = StyleSheet.create({
   },
   styleChipText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#3a3b3c',
   },
   styleChipTextSelected: {
@@ -203,6 +254,6 @@ const styles = StyleSheet.create({
   continueButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
 });
