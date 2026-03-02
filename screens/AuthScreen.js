@@ -14,7 +14,7 @@ const { width } = Dimensions.get('window');
 // Configure Google Sign-In
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  iosClientId: '100333808813-ad04fams427h7udjq5877dokoqmf8gss.apps.googleusercontent.com',
   scopes: ['profile', 'email'],
 });
 
