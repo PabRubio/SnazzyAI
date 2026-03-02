@@ -446,6 +446,7 @@ export default function CameraScreen({ navigation }) {
       setIsVideoPlaying(false);
       setIsVideoVisible(false);
       setIsEditingTitle(false);
+      setTorchEnabled(false);
       setEditedTitle('');
     }, 250);
   }, []);
@@ -494,8 +495,9 @@ export default function CameraScreen({ navigation }) {
       // Call Supabase edge function for product search
       const { data, error } = await supabase.functions.invoke('search-products-2', {
         body: {
+          userProfile: userProfile,
           base64Image: capturedPhotoBase64,
-          userProfile: userProfile
+          outfitName: analysisResult?.outfitName || ''
         }
       });
 
@@ -592,8 +594,9 @@ export default function CameraScreen({ navigation }) {
       // Call Supabase edge function for product search
       const { data, error } = await supabase.functions.invoke('search-products-2', {
         body: {
+          userProfile: userProfile,
           base64Image: capturedPhotoBase64,
-          userProfile: userProfile
+          outfitName: analysisResult?.outfitName || ''
         }
       });
 
@@ -1745,6 +1748,7 @@ const styles = StyleSheet.create({
   },
   editTitleInput: {
     flex: 1,
+    height: 28,
     fontSize: 20,
     color: '#3a3b3c',
     fontWeight: 'bold',

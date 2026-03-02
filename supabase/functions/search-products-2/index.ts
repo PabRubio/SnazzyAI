@@ -104,7 +104,7 @@ serve(async (req) => {
   }
 
   try {
-    const { base64Image, userProfile } = await req.json()
+    const { userProfile, base64Image, outfitName } = await req.json()
 
     if (!base64Image) {
       return new Response(
@@ -169,11 +169,11 @@ serve(async (req) => {
             },
             {
               type: 'text',
-              text: `Look at this outfit. Generate five concise product search terms for complementary fashion items that would go well with this outfit.${personalizationContext}
+              text: `Look at this outfit${outfitName ? ` "${outfitName}"` : ''}. Generate five concise product search terms for complementary fashion items that would go well with this outfit.${personalizationContext}
 
 IMPORTANT: Analyze the image to auto-detect the person's age, gender, height, weight, and clothing sizes. Keep their hair color, skin tone, and body shape in mind when generating recommendations. Use state of the art fashion principles to ensure the search terms will lead to items that complement their unique characteristics and the outfit shown.
 
-Return ONLY the search terms as an array (search_term = brand + gender + color + item). Example: ["Ralph Lauren men's navy quarter zip", "...", "...", "...", "..."]`
+Return ONLY the search terms as an array (search_term = brand + gender + color + item). Example: ["Ralph Lauren men's navy quarter zip", "...", "...", "...", "..."].`
             }
           ]
         }
