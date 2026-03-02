@@ -1280,7 +1280,7 @@ export default function CameraScreen({ navigation }) {
               <View style={[styles.cornerBracket, styles.cornerBottomLeft]} />
               <View style={[styles.cornerBracket, styles.cornerBottomRight]} />
             </View>
-            {isCameraReady && showInstruction && (
+            {showInstruction && (
               <View style={styles.instructionContainer}>
                 <TouchableOpacity
                   style={styles.instructionCloseButton}
@@ -1310,7 +1310,7 @@ export default function CameraScreen({ navigation }) {
         </Animated.View>
 
         {/* Capture Button - only show when camera is ready and no photo is captured */}
-        {isCameraReady && !capturedPhotoUri && (
+        {!capturedPhotoUri && (
           <View style={styles.captureButtonContainer}>
             {/* Gallery icon - left */}
             <TouchableOpacity
@@ -1321,14 +1321,16 @@ export default function CameraScreen({ navigation }) {
             </TouchableOpacity>
 
             {/* Main Button */}
-            <Animated.View style={[styles.captureButton, buttonAnimatedStyle, buttonContainerStyle]}>
-              <TouchableOpacity
-                style={styles.captureButtonTouch}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                activeOpacity={1}
-              />
-            </Animated.View>
+            {isCameraReady && (
+              <Animated.View style={[styles.captureButton, buttonAnimatedStyle, buttonContainerStyle]}>
+                <TouchableOpacity
+                  style={styles.captureButtonTouch}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  activeOpacity={1}
+                />
+              </Animated.View>
+            )}
 
             {/* Sparkles icon - right */}
             <TouchableOpacity

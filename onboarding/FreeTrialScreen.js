@@ -27,7 +27,7 @@ const BUTTON_BORDER_SIZE = 4;
 // Configure Google Sign-In
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  iosClientId: '100333808813-ad04fams427h7udjq5877dokoqmf8gss.apps.googleusercontent.com',
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   scopes: ['profile', 'email'],
 });
 
