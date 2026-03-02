@@ -24,11 +24,13 @@ const { width, height } = Dimensions.get('window');
 const BUTTON_SIZE = 60;
 const BUTTON_BORDER_SIZE = 4;
 
-// Configure Google Sign-In
+const GOOGLE_WEB_CLIENT_ID = '100333808813-h41jibhk6cffhqec6qosait664ib30mm.apps.googleusercontent.com';
+const GOOGLE_IOS_CLIENT_ID = '100333808813-ad04fams427h7udjq5877dokoqmf8gss.apps.googleusercontent.com';
+
 GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   scopes: ['profile', 'email'],
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+  iosClientId: GOOGLE_IOS_CLIENT_ID,
 });
 
 // Utility function for safe haptic feedback

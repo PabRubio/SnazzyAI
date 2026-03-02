@@ -11,11 +11,13 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 const { width } = Dimensions.get('window');
 
-// Configure Google Sign-In
+const GOOGLE_WEB_CLIENT_ID = '100333808813-h41jibhk6cffhqec6qosait664ib30mm.apps.googleusercontent.com';
+const GOOGLE_IOS_CLIENT_ID = '100333808813-ad04fams427h7udjq5877dokoqmf8gss.apps.googleusercontent.com';
+
 GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   scopes: ['profile', 'email'],
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+  iosClientId: GOOGLE_IOS_CLIENT_ID,
 });
 
 export default function AuthScreen({ navigation }) {
