@@ -57,8 +57,8 @@ function AppNavigatorContent() {
                 name="Camera"
                 component={CameraScreen}
                 options={{
-                  animationEnabled: true,
-                  presentation: 'transparentModal',
+                  animationEnabled: false,
+                  cardStyleInterpolator: () => ({}),
                   cardStyle: { backgroundColor: '#3a3b3c' }
                 }}
               />

@@ -15,10 +15,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { useNavigation } from '../navigation/NavigationContext';
 import { uploadPhoto, saveOutfitAnalysis, saveRecommendations } from '../services/supabaseHelpers';
-import { useCameraPermissions } from 'expo-camera';
-import { useOnboarding } from './OnboardingContext';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { usePlacement, useSuperwall } from 'expo-superwall';
+import { useOnboarding } from './OnboardingContext';
+import { useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
+import * as StoreReview from 'expo-store-review';
 
 const { width, height } = Dimensions.get('window');
 const BUTTON_SIZE = 60;
@@ -62,11 +64,13 @@ export default function FreeTrialScreen({ navigation }) {
   const [recommendationClickCount, setRecommendationClickCount] = useState(0);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [showInstruction, setShowInstruction] = useState(true);
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const cameraRef = useRef(null);
   const insets = useSafeAreaInsets();
   const captureTimerRef = useRef(null);
   const hapticIntervalRef = useRef(null);
   const delayedCaptureRef = useRef(null);
+  const hasRequestedReviewRef = useRef(false);
   const analysisAbortControllerRef = useRef(null);
   const recommendationsAbortControllerRef = useRef(null);
 
@@ -95,6 +99,151 @@ export default function FreeTrialScreen({ navigation }) {
   // BottomSheet setup
   const bottomSheetRef = useRef(null);
   const snapPoints = useMemo(() => ['25%', '85%'], []);
+
+  // Request in-app review when user swipes bottom sheet up for the first time
+  const handleBottomSheetChange = useCallback(async (index) => {
+    if (index === 1 && !hasRequestedReviewRef.current && analysisResult) {
+      hasRequestedReviewRef.current = true;
+      if (await StoreReview.hasAction()) {
+        StoreReview.requestReview();
+      }
+    }
+  }, [analysisResult]);
+
+  // Handle picking image from gallery
+  const handlePickImage = async () => {
+    if (isProcessingCapture) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const photo = result.assets[0];
+      console.log('Image picked:', photo.uri);
+
+      setIsProcessingCapture(true);
+      setCapturedPhotoUri(photo.uri);
+      setCapturedPhotoBase64(photo.base64);
+
+      setIsAnalyzing(true);
+      setAnalysisResult(null);
+      bottomSheetRef.current?.snapToIndex(0);
+
+      const abortController = new AbortController();
+      analysisAbortControllerRef.current = abortController;
+
+      try {
+        console.log('Starting outfit analysis...');
+
+        const userProfile = {
+          gender: onboardingData.gender,
+          favorite_styles: onboardingData.favoriteStyles || [],
+          favorite_brands: onboardingData.favoriteBrands || [],
+        };
+
+        const { data, error } = await supabase.functions.invoke('analyze-outfit', {
+          body: {
+            base64Image: photo.base64,
+            userProfile: userProfile
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Analysis failed');
+        }
+
+        if (!data) {
+          throw new Error('No analysis returned');
+        }
+
+        const analysisData = { analysis: data };
+        console.log('Analysis complete:', analysisData);
+
+        if (analysisAbortControllerRef.current === abortController) {
+          analysisAbortControllerRef.current = null;
+        }
+
+        setCapturedPhotoUri(currentUri => {
+          if (!currentUri) {
+            setIsAnalyzing(false);
+            setIsProcessingCapture(false);
+            return currentUri;
+          }
+
+          if (analysisData.isValidPhoto === false) {
+            setIsAnalyzing(false);
+            setIsProcessingCapture(false);
+            bottomSheetRef.current?.close();
+            setTimeout(() => {
+              setAnalysisResult(null);
+              setCapturedPhotoUri(null);
+            }, 500);
+          } else {
+            setAnalysisResult({ ...analysisData.analysis });
+            setIsProcessingCapture(false);
+            setIsAnalyzing(false);
+          }
+
+          return currentUri;
+        });
+
+      } catch (analysisError) {
+        console.error('Analysis failed:', analysisError);
+
+        if (analysisAbortControllerRef.current === abortController) {
+          analysisAbortControllerRef.current = null;
+        }
+
+        if (analysisError.name === 'AbortError') {
+          setIsAnalyzing(false);
+          setIsProcessingCapture(false);
+          return;
+        }
+
+        setCapturedPhotoUri(currentUri => {
+          if (!currentUri) {
+            setIsAnalyzing(false);
+            setIsProcessingCapture(false);
+            return currentUri;
+          }
+
+          setIsAnalyzing(false);
+          bottomSheetRef.current?.close();
+
+          let errorMsg = 'Connection error. Please check your network.';
+          if (analysisError.message) {
+            if (analysisError.message.includes('Network') ||
+                analysisError.message.includes('connection') ||
+                analysisError.message.includes('timeout')) {
+              errorMsg = 'Connection error. Please check your network.';
+            } else if (analysisError.message.includes('API key')) {
+              errorMsg = 'Configuration error. Please check API settings.';
+            } else if (analysisError.message.includes('Rate limit')) {
+              errorMsg = 'Too many requests. Please try again.';
+            }
+          }
+
+          Alert.alert('Analysis Failed', errorMsg, [{ text: 'OK' }]);
+          setTimeout(() => {
+            setCapturedPhotoUri(null);
+            setIsProcessingCapture(false);
+          }, 500);
+
+          return currentUri;
+        });
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      setIsProcessingCapture(false);
+    }
+  };
 
   // Handle opening purchase URLs in browser
   const handleOpenPurchaseUrl = useCallback(async (url) => {
@@ -208,7 +357,7 @@ export default function FreeTrialScreen({ navigation }) {
     recommendationsAbortControllerRef.current = abortController;
 
     try {
-      console.log('Generating recommendations after auth...');
+      console.log('Generating recommendations on demand...');
 
       const userProfile = {
         gender: onboardingData.gender,
@@ -216,17 +365,41 @@ export default function FreeTrialScreen({ navigation }) {
         favorite_brands: onboardingData.favoriteBrands || [],
       };
 
-      const { data, error } = await supabase.functions.invoke('search-products-2', {
-        body: {
-          base64Image: capturedPhotoBase64,
-          userProfile: userProfile
+      let accumulatedProducts = [];
+
+      for (let run = 0; run < 3; run++) {
+        if (abortController.signal.aborted) break;
+
+        console.log(`Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`);
+
+        const { data, error } = await supabase.functions.invoke('search-products-2', {
+          body: {
+            base64Image: capturedPhotoBase64,
+            userProfile: userProfile
+          }
+        });
+
+        if (error) {
+          console.error(`Recommendation run ${run + 1} failed:`, error.message);
+          continue;
         }
-      });
 
-      if (error) throw new Error(error.message || 'Failed to generate recommendations');
-      if (!data || !data.products) throw new Error('No recommendations returned');
+        if (data?.products) {
+          const existingUrls = new Set(accumulatedProducts.map(p => p.purchaseUrl));
+          const newProducts = data.products.filter(p => !existingUrls.has(p.purchaseUrl));
+          newProducts.map(item => accumulatedProducts.push(item));
+        }
 
-      const recommendations = data.products;
+        if (accumulatedProducts.length >= 10) break;
+      }
+
+      const recommendations = accumulatedProducts.slice(0, 10);
+
+      if (recommendations.length === 0) {
+        throw new Error('No recommendations returned after 3 attempts');
+      }
+
+      console.log(`Final recommendations: ${recommendations.length} products`);
 
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
@@ -541,8 +714,9 @@ export default function FreeTrialScreen({ navigation }) {
           } else {
             // Show results immediately (don't save to DB yet - user not authenticated)
             setAnalysisResult({ ...result.analysis });
-            setIsAnalyzing(false);
             setIsProcessingCapture(false);
+            setIsAnalyzing(false);
+
           }
 
           return currentUri;
@@ -661,29 +835,6 @@ export default function FreeTrialScreen({ navigation }) {
   }, []);
 
 
-  // Handle button fade in/out based on camera state
-  useEffect(() => {
-    if (isCameraReady && !capturedPhotoUri) {
-      // Fade in when camera is ready and no photo captured
-      buttonOpacity.value = withTiming(1, { duration: 100 });
-    } else {
-      // Fade out when photo is captured
-      buttonOpacity.value = withTiming(0, { duration: 100 });
-    }
-  }, [isCameraReady, capturedPhotoUri, buttonOpacity]);
-
-  // Handle back navigation - fade out button before navigating
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      // Only fade button if it's visible (camera view, no photo captured)
-      if (!capturedPhotoUri && isCameraReady) {
-        buttonOpacity.value = withTiming(0, { duration: 100 });
-      }
-    });
-
-    return unsubscribe;
-  }, [navigation, capturedPhotoUri, isCameraReady, buttonOpacity]);
-
   // Animated styles
   const buttonAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -691,11 +842,10 @@ export default function FreeTrialScreen({ navigation }) {
     };
   });
 
-  const buttonContainerStyle = useAnimatedStyle(() => {
-    return {
-      opacity: buttonOpacity.value,
-    };
-  });
+  const buttonContainerStyle = {
+    opacity: isCameraReady ? 1 : 0,
+    pointerEvents: isCameraReady ? 'auto' : 'none',
+  };
 
   // Border glow animated styles
   const borderAnimatedStyle = useAnimatedStyle(() => {
@@ -741,6 +891,7 @@ export default function FreeTrialScreen({ navigation }) {
             <CameraView
               facing="back"
               ref={cameraRef}
+              enableTorch={torchEnabled}
               style={StyleSheet.absoluteFillObject}
               faceDetectorSettings={{
                 mode: 'none',
@@ -759,7 +910,7 @@ export default function FreeTrialScreen({ navigation }) {
               <View style={[styles.cornerBracket, styles.cornerBottomLeft]} />
               <View style={[styles.cornerBracket, styles.cornerBottomRight]} />
             </View>
-            {isCameraReady && showInstruction && (
+            {showInstruction && (
               <View style={styles.instructionContainer}>
                 <TouchableOpacity
                   style={styles.instructionCloseButton}
@@ -789,18 +940,34 @@ export default function FreeTrialScreen({ navigation }) {
         </Animated.View>
 
         {/* Capture Button - only show when camera is ready and no photo is captured */}
-        {isCameraReady && !capturedPhotoUri && (
-          <Animated.View style={[styles.captureButtonContainer, buttonContainerStyle]}>
+        {!capturedPhotoUri && (
+          <View style={styles.captureButtonContainer}>
+            {/* Gallery icon - left */}
+            <TouchableOpacity
+              onPress={handlePickImage}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="images-outline" size={28} color="#fff" />
+            </TouchableOpacity>
+
             {/* Main Button */}
-            <Animated.View style={[styles.captureButton, buttonAnimatedStyle]}>
+            <Animated.View style={[styles.captureButton, buttonAnimatedStyle, buttonContainerStyle]}>
               <TouchableOpacity
                 style={styles.captureButtonTouch}
-                onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
+                onPressIn={handlePressIn}
                 activeOpacity={1}
               />
             </Animated.View>
-          </Animated.View>
+
+            {/* Sparkles icon - right */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setTorchEnabled(prev => !prev)}
+            >
+              <Ionicons name="sparkles" size={28} color={torchEnabled ? "#FFD60A" : "#fff"} />
+            </TouchableOpacity>
+          </View>
         )}
         
         {/* Bottom Sheet for Analysis Results */}
@@ -814,6 +981,7 @@ export default function FreeTrialScreen({ navigation }) {
               backdropComponent={null}
               enableDynamicSizing={false}
               enablePanDownToClose={false}
+              onChange={handleBottomSheetChange}
               maxDynamicContentSize={height * 0.85}
               backgroundStyle={styles.bottomSheetBackground}
               handleIndicatorStyle={styles.bottomSheetIndicator}
@@ -964,11 +1132,12 @@ const styles = StyleSheet.create({
   captureButtonContainer: {
     position: 'absolute',
     bottom: 70,
-    alignSelf: 'center',
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 40,
   },
   captureButton: {
     width: BUTTON_SIZE,

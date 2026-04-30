@@ -492,24 +492,42 @@ export default function CameraScreen({ navigation }) {
     try {
       console.log('Generating recommendations on demand...');
 
-      // Call Supabase edge function for product search
-      const { data, error } = await supabase.functions.invoke('search-products-2', {
-        body: {
-          userProfile: userProfile,
-          base64Image: capturedPhotoBase64,
-          outfitName: analysisResult?.outfitName || ''
+      let accumulatedProducts = [];
+
+      for (let run = 0; run < 3; run++) {
+        if (abortController.signal.aborted) break;
+
+        console.log(`Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`);
+
+        const { data, error } = await supabase.functions.invoke('search-products-2', {
+          body: {
+            userProfile: userProfile,
+            base64Image: capturedPhotoBase64,
+            outfitName: analysisResult?.outfitName || ''
+          }
+        });
+
+        if (error) {
+          console.error(`Recommendation run ${run + 1} failed:`, error.message);
+          continue;
         }
-      });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to generate recommendations');
+        if (data?.products) {
+          const existingUrls = new Set(accumulatedProducts.map(p => p.purchaseUrl));
+          const newProducts = data.products.filter(p => !existingUrls.has(p.purchaseUrl));
+          newProducts.map(item => accumulatedProducts.push(item));
+        }
+
+        if (accumulatedProducts.length >= 10) break;
       }
 
-      if (!data || !data.products) {
-        throw new Error('No recommendations returned');
+      const recommendations = accumulatedProducts.slice(0, 10);
+
+      if (recommendations.length === 0) {
+        throw new Error('No recommendations returned after 3 attempts');
       }
 
-      const recommendations = data.products;
+      console.log(`Final recommendations: ${recommendations.length} products`);
 
       // Clear abort controller on success
       if (recommendationsAbortControllerRef.current === abortController) {
@@ -589,26 +607,44 @@ export default function CameraScreen({ navigation }) {
     recommendationsAbortControllerRef.current = abortController;
 
     try {
-      console.log('Regenerating recommendations...');
+      console.log('Generating recommendations on demand...');
 
-      // Call Supabase edge function for product search
-      const { data, error } = await supabase.functions.invoke('search-products-2', {
-        body: {
-          userProfile: userProfile,
-          base64Image: capturedPhotoBase64,
-          outfitName: analysisResult?.outfitName || ''
+      let accumulatedProducts = [];
+
+      for (let run = 0; run < 3; run++) {
+        if (abortController.signal.aborted) break;
+
+        console.log(`Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`);
+
+        const { data, error } = await supabase.functions.invoke('search-products-2', {
+          body: {
+            userProfile: userProfile,
+            base64Image: capturedPhotoBase64,
+            outfitName: analysisResult?.outfitName || ''
+          }
+        });
+
+        if (error) {
+          console.error(`Recommendation run ${run + 1} failed:`, error.message);
+          continue;
         }
-      });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to regenerate recommendations');
+        if (data?.products) {
+          const existingUrls = new Set(accumulatedProducts.map(p => p.purchaseUrl));
+          const newProducts = data.products.filter(p => !existingUrls.has(p.purchaseUrl));
+          newProducts.map(item => accumulatedProducts.push(item));
+        }
+
+        if (accumulatedProducts.length >= 10) break;
       }
 
-      if (!data || !data.products) {
-        throw new Error('No recommendations returned');
+      const recommendations = accumulatedProducts.slice(0, 10);
+
+      if (recommendations.length === 0) {
+        throw new Error('No recommendations returned after 3 attempts');
       }
 
-      const recommendations = data.products;
+      console.log(`Final recommendations: ${recommendations.length} products`);
 
       // Clear abort controller on success
       if (recommendationsAbortControllerRef.current === abortController) {
@@ -882,8 +918,8 @@ export default function CameraScreen({ navigation }) {
 
             // Show results immediately
             setAnalysisResult({ ...result.analysis });
-            setIsAnalyzing(false);
             setIsProcessingCapture(false);
+            setIsAnalyzing(false);
           }
 
           return currentUri;
@@ -1053,8 +1089,8 @@ export default function CameraScreen({ navigation }) {
             });
 
             setAnalysisResult({ ...analysisData.analysis });
-            setIsAnalyzing(false);
             setIsProcessingCapture(false);
+            setIsAnalyzing(false);
           }
 
           return currentUri;
@@ -1162,29 +1198,6 @@ export default function CameraScreen({ navigation }) {
   }, []);
 
 
-  // Handle button fade in/out based on camera state
-  useEffect(() => {
-    if (isCameraReady && !capturedPhotoUri) {
-      // Fade in when camera is ready and no photo captured
-      buttonOpacity.value = withTiming(1, { duration: 100 });
-    } else {
-      // Fade out when photo is captured
-      buttonOpacity.value = withTiming(0, { duration: 100 });
-    }
-  }, [isCameraReady, capturedPhotoUri, buttonOpacity]);
-
-  // Handle back navigation - fade out button before navigating
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      // Only fade button if it's visible (camera view, no photo captured)
-      if (!capturedPhotoUri && isCameraReady) {
-        buttonOpacity.value = withTiming(0, { duration: 100 });
-      }
-    });
-
-    return unsubscribe;
-  }, [navigation, capturedPhotoUri, isCameraReady, buttonOpacity]);
-
   // Animated styles
   const buttonAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -1192,11 +1205,10 @@ export default function CameraScreen({ navigation }) {
     };
   });
 
-  const buttonContainerStyle = useAnimatedStyle(() => {
-    return {
-      opacity: buttonOpacity.value,
-    };
-  });
+  const buttonContainerStyle = {
+    opacity: isCameraReady ? 1 : 0,
+    pointerEvents: isCameraReady ? 'auto' : 'none',
+  };
 
   // Border glow animated styles
   const borderAnimatedStyle = useAnimatedStyle(() => {
@@ -1321,16 +1333,14 @@ export default function CameraScreen({ navigation }) {
             </TouchableOpacity>
 
             {/* Main Button */}
-            {isCameraReady && (
-              <Animated.View style={[styles.captureButton, buttonAnimatedStyle, buttonContainerStyle]}>
-                <TouchableOpacity
-                  style={styles.captureButtonTouch}
-                  onPressIn={handlePressIn}
-                  onPressOut={handlePressOut}
-                  activeOpacity={1}
-                />
-              </Animated.View>
-            )}
+            <Animated.View style={[styles.captureButton, buttonAnimatedStyle, buttonContainerStyle]}>
+              <TouchableOpacity
+                style={styles.captureButtonTouch}
+                onPressOut={handlePressOut}
+                onPressIn={handlePressIn}
+                activeOpacity={1}
+              />
+            </Animated.View>
 
             {/* Sparkles icon - right */}
             <TouchableOpacity

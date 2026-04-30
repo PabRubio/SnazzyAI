@@ -98,7 +98,7 @@ export default function OnboardingNavigator() {
         component={FreeTrialScreen}
         options={{
           animationEnabled: false,
-          gestureEnabled: false,
+          cardStyleInterpolator: () => ({}),
           cardStyle: { backgroundColor: '#3a3b3c' }
         }}
       />
