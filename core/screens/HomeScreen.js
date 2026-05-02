@@ -11,8 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePlacement, useUser } from 'expo-superwall';
 import { supabase } from '../../supabase/services/supabase';
-import { useNavigation } from '../components/navigation/NavigationContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '../components/navigation/NavigationContext';
 import { getProfile, updateProfile, addFavorite, removeFavorite } from '../../supabase/services/supabaseHelpers';
 
 const { width, height } = Dimensions.get('window');

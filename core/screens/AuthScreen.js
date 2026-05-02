@@ -6,8 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlacement } from 'expo-superwall';
 import { supabase } from '../../supabase/services/supabase';
-import { useNavigation } from '../components/navigation/NavigationContext';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useNavigation } from '../components/navigation/NavigationContext';
 
 const { width } = Dimensions.get('window');
 

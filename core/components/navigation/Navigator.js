@@ -1,9 +1,9 @@
 import React from 'react';
+import Constants from 'expo-constants';
+import { SuperwallProvider } from 'expo-superwall';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { SuperwallProvider } from 'expo-superwall';
-import Constants from 'expo-constants';
 import { NavigationProvider, useNavigation } from './NavigationContext';
 import Onboarding from '../../screens/Onboarding';
 import AuthScreen from '../../screens/AuthScreen';
