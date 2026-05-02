@@ -13,7 +13,7 @@ import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../supabase/services/supabase';
-import { useNavigation } from '../navigation/NavigationContext';
+import { useNavigation } from '../components/navigation/NavigationContext';
 import { uploadPhoto, saveOutfitAnalysis, saveRecommendations } from '../../supabase/services/supabaseHelpers';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { usePlacement, useSuperwall } from 'expo-superwall';

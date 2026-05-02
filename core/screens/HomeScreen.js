@@ -8,10 +8,10 @@ import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../supabase/services/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePlacement, useUser } from 'expo-superwall';
-import { useNavigation } from '../navigation/NavigationContext';
+import { supabase } from '../../supabase/services/supabase';
+import { useNavigation } from '../components/navigation/NavigationContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getProfile, updateProfile, addFavorite, removeFavorite } from '../../supabase/services/supabaseHelpers';
 
@@ -51,7 +51,7 @@ export default function HomeScreen({ navigation }) {
   const { switchToAuthStack } = useNavigation();
   const { registerPlacement } = usePlacement({
     onDismiss: (info, result) => {
-      if (result?.type === 'purchased' || result?.type === 'restored') {
+      if (['purchased', 'restored'].includes(result?.type)) {
         navigation.navigate('Camera');
       }
     },
@@ -580,10 +580,9 @@ export default function HomeScreen({ navigation }) {
     }
 
     if (tabName === 'add') {
-      const openCamera = () => navigation.navigate('Camera');
       const requestAccessPaywall = () => {
         if (subscriptionStatus?.status === 'ACTIVE') {
-          openCamera();
+          navigation.navigate('Camera');
           return;
         }
 
@@ -720,8 +719,8 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.logoContainer}>
               <Image
                 source={require('../../assets/logo3-transparent.png')}
-                style={styles.logo}
                 resizeMode="contain"
+                style={styles.logo}
               />
             </View>
 
