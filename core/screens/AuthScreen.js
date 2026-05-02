@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlacement } from 'expo-superwall';
-import { supabase } from '../services/supabase';
+import { supabase } from '../../supabase/services/supabase';
 import { useNavigation } from '../navigation/NavigationContext';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
@@ -132,7 +132,7 @@ export default function AuthScreen({ navigation }) {
           <View>
             <View style={styles.logoContainer}>
               <Image
-                source={require('../assets/logo3-transparent.png')}
+                source={require('../../assets/logo3-transparent.png')}
                 resizeMode="contain"
                 style={styles.logo}
               />
@@ -151,6 +151,7 @@ export default function AuthScreen({ navigation }) {
                   style={[styles.languageOption, language === 'es' && styles.languageOptionActive]}
                   onPress={() => setLanguage('es')}
                   activeOpacity={0.7}
+                  disabled
                 >
                   <Text style={styles.flagEmoji}>🇪🇸</Text><Text style={styles.langText}> ES</Text>
                 </TouchableOpacity>
@@ -161,7 +162,7 @@ export default function AuthScreen({ navigation }) {
           <View style={styles.screenshotWrapper}>
             <View style={styles.screenshotContainer}>
               <Image
-                source={require('../assets/screenshot-transparent.png')}
+                source={require('../../assets/screenshot-transparent.png')}
                 style={styles.screenshot}
                 resizeMode="contain"
               />

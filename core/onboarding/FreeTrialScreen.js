@@ -12,9 +12,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../services/supabase';
+import { supabase } from '../../supabase/services/supabase';
 import { useNavigation } from '../navigation/NavigationContext';
-import { uploadPhoto, saveOutfitAnalysis, saveRecommendations } from '../services/supabaseHelpers';
+import { uploadPhoto, saveOutfitAnalysis, saveRecommendations } from '../../supabase/services/supabaseHelpers';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { usePlacement, useSuperwall } from 'expo-superwall';
 import { useOnboarding } from './OnboardingContext';
@@ -1092,7 +1092,7 @@ export default function FreeTrialScreen({ navigation }) {
                         </>
                       ) : (
                         <>
-                          <Image source={require('../assets/logo-google.png')} style={styles.googleIconImage} />
+                          <Image source={require('../../assets/logo-google.png')} style={styles.googleIconImage} />
                           <Text style={styles.generateButtonText} numberOfLines={1}>Generate Recommendations</Text>
                         </>
                       )}

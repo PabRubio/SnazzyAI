@@ -2,7 +2,7 @@ import { registerRootComponent } from 'expo';
 import { View, ActivityIndicator } from 'react-native';
 import { useFonts, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 
-import AppNavigator from './navigation/Navigator';
+import AppNavigator from './core/navigation/Navigator';
 
 function Navigator() {
   const [fontsLoaded] = useFonts({

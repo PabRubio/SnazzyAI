@@ -8,11 +8,12 @@ import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from '../../supabase/services/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
-import { supabase } from '../services/supabase';
+import { usePlacement, useUser } from 'expo-superwall';
 import { useNavigation } from '../navigation/NavigationContext';
-import { getProfile, updateProfile, addFavorite, removeFavorite } from '../services/supabaseHelpers';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getProfile, updateProfile, addFavorite, removeFavorite } from '../../supabase/services/supabaseHelpers';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,11 +43,23 @@ export default function HomeScreen({ navigation }) {
   const otherScrollRef = useRef(null);
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
+  const { subscriptionStatus } = useUser();
   const [saving, setSaving] = useState(false);
   const [favorites, setFavorites] = useState([]);
   const [favoriteItems, setFavoriteItems] = useState(new Map()); // Map: itemId -> database UUID
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const { switchToAuthStack } = useNavigation();
+  const { registerPlacement } = usePlacement({
+    onDismiss: (info, result) => {
+      if (result?.type === 'purchased' || result?.type === 'restored') {
+        navigation.navigate('Camera');
+      }
+    },
+    onError: (error) => {
+      console.error('Paywall error:', error);
+      Alert.alert('Error', 'Failed to show paywall. Please try again.');
+    }
+  });
 
   // Settings state - Personal Information
   const [name, setName] = useState('');
@@ -567,14 +580,26 @@ export default function HomeScreen({ navigation }) {
     }
 
     if (tabName === 'add') {
+      const openCamera = () => navigation.navigate('Camera');
+      const requestAccessPaywall = () => {
+        if (subscriptionStatus?.status === 'ACTIVE') {
+          openCamera();
+          return;
+        }
+
+        return registerPlacement({
+          placement: 'campaign_trigger'
+        });
+      };
+
       // Check camera permission before navigating
       if (cameraPermission?.granted) {
-        navigation.navigate('Camera');
+        await requestAccessPaywall();
       } else {
         // Request permission
         const result = await requestCameraPermission();
         if (result.granted) {
-          navigation.navigate('Camera');
+          await requestAccessPaywall();
         } else {
           // Permission denied - show alert with Settings option
           Alert.alert(
@@ -694,7 +719,7 @@ export default function HomeScreen({ navigation }) {
           <View>
             <View style={styles.logoContainer}>
               <Image
-                source={require('../assets/logo3-transparent.png')}
+                source={require('../../assets/logo3-transparent.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -1468,7 +1493,7 @@ export default function HomeScreen({ navigation }) {
           activeOpacity={0.7}
         >
           <Image
-            source={require('../assets/logo.png')}
+            source={require('../../assets/logo.png')}
             style={styles.plusIconContainer}
             resizeMode="cover"
           />
