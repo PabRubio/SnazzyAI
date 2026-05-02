@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../../supabase/services/supabase';
+import { supabase } from '../../../supabase/services/supabase';
 
 const NavigationContext = createContext();
 
