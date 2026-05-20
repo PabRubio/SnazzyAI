@@ -7,7 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "owner": "pabrubio",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -21,9 +20,9 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#3a3b3c"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.pabrubio.snazzy"
     },
     "extra": {
       "eas": {
@@ -32,9 +31,7 @@
       "superwallApiKey": "pk_Eg6xXf9tdLDmLgwI1Yni_"
     },
     "plugins": [
-      "react-native-edge-to-edge",
-      "expo-font",
-      "expo-video"
+      "react-native-edge-to-edge"
     ]
   }
 }
