@@ -577,12 +577,12 @@ export default function FreeTrialScreen({ navigation }) {
     }
 
     if (!isAuthenticated) {
-      if (Platform.OS === 'android') {
-        handleGoogleSignIn();
-      }
-
       if (Platform.OS === 'ios') {
         handleAppleSignIn();
+      }
+
+      if (Platform.OS === 'android') {
+        handleGoogleSignIn();
       }
       return;
     }

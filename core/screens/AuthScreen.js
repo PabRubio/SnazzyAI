@@ -38,12 +38,12 @@ export default function AuthScreen({ navigation }) {
       if (result?.state === 'purchased') {
         console.log('User purchased subscription!');
         // Continue to sign in flow
-        if (Platform.OS === 'android') {
-          handleGoogleSignIn();
-        }
-
         if (Platform.OS === 'ios') {
           handleAppleSignIn();
+        }
+
+        if (Platform.OS === 'android') {
+          handleGoogleSignIn();
         }
       }
     },
