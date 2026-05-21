@@ -579,7 +579,9 @@ export default function FreeTrialScreen({ navigation }) {
     if (!isAuthenticated) {
       if (Platform.OS === 'android') {
         handleGoogleSignIn();
-      } else if (Platform.OS === 'ios') {
+      }
+
+      if (Platform.OS === 'ios') {
         handleAppleSignIn();
       }
       return;
@@ -936,6 +938,7 @@ export default function FreeTrialScreen({ navigation }) {
   });
 
   const placeholderPaddingBottom = analysisResult?.isValidPhoto ? 15 : insets.bottom + 12;
+  const buttonText = isAuthenticated ? 'Generate Recommendations' : 'Sign in with Apple';
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -1165,9 +1168,7 @@ export default function FreeTrialScreen({ navigation }) {
                           {Platform.OS === 'ios' ? (
                             <>
                               <Ionicons name="logo-apple" size={20} color="#fff" style={styles.buttonIcon} />
-                              <Text style={styles.generateButtonText} numberOfLines={1}>
-                                {isAuthenticated ? 'Generate Recommendations' : 'Sign in with Apple'}
-                              </Text>
+                              <Text style={styles.generateButtonText} numberOfLines={1}>{buttonText}</Text>
                             </>
                           ) : (
                             <>

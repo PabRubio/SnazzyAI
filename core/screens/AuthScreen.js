@@ -40,7 +40,9 @@ export default function AuthScreen({ navigation }) {
         // Continue to sign in flow
         if (Platform.OS === 'android') {
           handleGoogleSignIn();
-        } else if (Platform.OS === 'ios') {
+        }
+
+        if (Platform.OS === 'ios') {
           handleAppleSignIn();
         }
       }
@@ -176,6 +178,16 @@ export default function AuthScreen({ navigation }) {
     }
   };
 
+  const authHandler = () => {
+    if (Platform.OS === 'android') {
+      handleGoogleSignIn();
+    }
+
+    if (Platform.OS === 'ios') {
+      handleAppleSignIn();
+    }
+  };
+
   return (
     <View style={styles.container}>
       {loading ? (
@@ -252,9 +264,9 @@ export default function AuthScreen({ navigation }) {
                 ? 'Already have an account? '
                 : '¿Ya tienes una cuenta? '}</Text>
               <TouchableOpacity
-                onPress={Platform.OS === 'ios' ? handleAppleSignIn : handleGoogleSignIn}
-                activeOpacity={0.7}
                 disabled={loading}
+                activeOpacity={0.7}
+                onPress={authHandler}
               >
                 <Text style={styles.signInLink}>{language === 'en'
                   ? Platform.OS === 'ios' ? 'Sign in with Apple' : 'Sign in'
