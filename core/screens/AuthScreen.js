@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import Text from '../components/Text';
-import { StyleSheet, View, TouchableOpacity, Image, ActivityIndicator, Alert, Dimensions, ScrollView } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Image, ActivityIndicator, Alert, Dimensions, ScrollView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlacement } from 'expo-superwall';
 import { supabase } from '../../supabase/services/supabase';
@@ -37,7 +38,11 @@ export default function AuthScreen({ navigation }) {
       if (result?.state === 'purchased') {
         console.log('User purchased subscription!');
         // Continue to sign in flow
-        handleGoogleSignIn();
+        if (Platform.OS === 'android') {
+          handleGoogleSignIn();
+        } else if (Platform.OS === 'ios') {
+          handleAppleSignIn();
+        }
       }
     },
     onError: (error) => {
@@ -102,10 +107,68 @@ export default function AuthScreen({ navigation }) {
         errorMessage = error.message;
       }
 
+      const okButton = [{ text: 'OK' }];
+
       Alert.alert(
         'Sign-In Failed',
         errorMessage,
-        [{ text: 'OK' }]
+        okButton
+      );
+
+      // Only set loading to false on error
+      setLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      setLoading(true);
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error('No Apple identity token returned');
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        token: credential.identityToken,
+        provider: 'apple',
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('Successfully signed in:', data.user.email);
+
+      // Manually switch to app stack
+      switchToAppStack();
+
+    } catch (error) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        setLoading(false);
+        return;
+      }
+
+      console.error('Sign-in error:', error);
+
+      let errorMessage = 'Failed to sign in with Apple';
+
+      if (error.message) {
+        errorMessage = error.message;
+      }
+
+      const okButton = [{ text: 'OK' }];
+
+      Alert.alert(
+        'Sign-In Failed',
+        errorMessage,
+        okButton
       );
 
       // Only set loading to false on error
@@ -189,13 +252,13 @@ export default function AuthScreen({ navigation }) {
                 ? 'Already have an account? '
                 : '¿Ya tienes una cuenta? '}</Text>
               <TouchableOpacity
-                onPress={handleGoogleSignIn}
-                disabled={loading}
+                onPress={Platform.OS === 'ios' ? handleAppleSignIn : handleGoogleSignIn}
                 activeOpacity={0.7}
+                disabled={loading}
               >
                 <Text style={styles.signInLink}>{language === 'en'
-                  ? 'Sign in'
-                  : 'Iniciar sesión'}</Text>
+                  ? Platform.OS === 'ios' ? 'Sign in with Apple' : 'Sign in'
+                  : Platform.OS === 'ios' ? 'Iniciar sesión con Apple' : 'Iniciar sesión'}</Text>
               </TouchableOpacity>
             </View>
           </View>

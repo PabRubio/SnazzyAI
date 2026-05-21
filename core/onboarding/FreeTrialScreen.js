@@ -3,7 +3,7 @@ import Text from '../components/Text';
 import { CameraView } from 'expo-camera';
 import { StatusBar } from 'expo-status-bar';
 import { StatusBar as RNStatusBar } from 'react-native';
-import { StyleSheet, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import BottomSheet from '@gorhom/bottom-sheet';
@@ -16,6 +16,7 @@ import { supabase } from '../../supabase/services/supabase';
 import { useNavigation } from '../components/navigation/NavigationContext';
 import { uploadPhoto, saveOutfitAnalysis, saveRecommendations } from '../../supabase/services/supabaseHelpers';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { usePlacement, useSuperwall } from 'expo-superwall';
 import { useOnboarding } from './OnboardingContext';
 import { useCameraPermissions } from 'expo-camera';
@@ -504,6 +505,71 @@ export default function FreeTrialScreen({ navigation }) {
     }
   };
 
+  // Handle Apple Sign-In
+  const handleAppleSignIn = async () => {
+    try {
+      setIsSigningIn(true);
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error('No Apple identity token returned');
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        token: credential.identityToken,
+        provider: 'apple',
+      });
+
+      if (error) throw error;
+
+      console.log('Successfully signed in:', data.user.email);
+
+      // Check if this is an existing user (has profile data already)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('shoe_size')
+        .eq('id', data.user.id)
+        .single();
+
+      const isExistingUser = profile && profile.shoe_size;
+
+      if (isExistingUser) {
+        // Existing user - redirect to Home without saving onboarding data
+        console.log('Existing user detected, redirecting to Home');
+        switchToAppStack();
+      } else {
+        // New user - save profile first, then generate recommendations
+        console.log('New user detected, saving profile and generating recommendations');
+        setIsAuthenticated(true);
+        await saveOnboardingProfile();
+        await generateRecommendationsAfterAuth();
+        // Stay on FreeTrialScreen - new users must go through paywall
+      }
+
+    } catch (error) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        return;
+      }
+
+      console.error('Sign-in error:', error);
+
+      let errorMsg = 'Failed to sign in with Apple';
+      if (error.message) {
+        errorMsg = error.message;
+      }
+
+      Alert.alert('Sign-In Failed', errorMsg, [{ text: 'OK' }]);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
   // Handle Generate Recommendations button - requires sign-in first
   const handleGenerateRecommendations = useCallback(async () => {
     if (!analysisResult || !analysisResult.isValidPhoto || isGeneratingRecommendations || hasGeneratedRecommendations) {
@@ -511,7 +577,11 @@ export default function FreeTrialScreen({ navigation }) {
     }
 
     if (!isAuthenticated) {
-      handleGoogleSignIn();
+      if (Platform.OS === 'android') {
+        handleGoogleSignIn();
+      } else if (Platform.OS === 'ios') {
+        handleAppleSignIn();
+      }
       return;
     }
 
@@ -1092,8 +1162,19 @@ export default function FreeTrialScreen({ navigation }) {
                         </>
                       ) : (
                         <>
-                          <Image source={require('../../assets/logo-google.png')} style={styles.googleIconImage} />
-                          <Text style={styles.generateButtonText} numberOfLines={1}>Generate Recommendations</Text>
+                          {Platform.OS === 'ios' ? (
+                            <>
+                              <Ionicons name="logo-apple" size={20} color="#fff" style={styles.buttonIcon} />
+                              <Text style={styles.generateButtonText} numberOfLines={1}>
+                                {isAuthenticated ? 'Generate Recommendations' : 'Sign in with Apple'}
+                              </Text>
+                            </>
+                          ) : (
+                            <>
+                              <Image source={require('../../assets/logo-google.png')} style={styles.googleIconImage} />
+                              <Text style={styles.generateButtonText} numberOfLines={1}>Generate Recommendations</Text>
+                            </>
+                          )}
                         </>
                       )}
                     </TouchableOpacity>
