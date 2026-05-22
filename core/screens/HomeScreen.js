@@ -579,9 +579,7 @@ export default function HomeScreen({ navigation }) {
       deletingAccountRef.current = true;
       setDeletingAccount(true);
       await deleteAccount();
-      await supabase.auth.signOut({ scope: 'local' }).catch((signOutError) => {
-        console.error('Error clearing local session after account deletion:', signOutError);
-      });
+      await supabase.auth.signOut({ scope: 'local' });
       switchToAuthStack();
     } catch (error) {
       console.error('Error deleting account:', error);
