@@ -44,6 +44,7 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
   const { subscriptionStatus } = useUser();
+  const deletingAccountRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [favorites, setFavorites] = useState([]);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -555,7 +556,7 @@ export default function HomeScreen({ navigation }) {
 
   // Handle delete account
   const handleDeleteAccount = async () => {
-    if (deletingAccount) return;
+    if (deletingAccountRef.current || deletingAccount) return;
 
     Alert.alert(
       'Delete Account',
@@ -572,19 +573,19 @@ export default function HomeScreen({ navigation }) {
   };
 
   async function performDeleteAccount() {
-    if (deletingAccount) return;
+    if (deletingAccountRef.current || deletingAccount) return;
 
     try {
+      deletingAccountRef.current = true;
       setDeletingAccount(true);
       await deleteAccount();
       await supabase.auth.signOut({ scope: 'local' }).catch((signOutError) => {
         console.error('Error clearing local session after account deletion:', signOutError);
       });
-      setDeletingAccount(false);
       switchToAuthStack();
-      Alert.alert('Account Deleted');
     } catch (error) {
       console.error('Error deleting account:', error);
+      deletingAccountRef.current = false;
       setDeletingAccount(false);
       Alert.alert('Error', 'Failed to delete account. Please try again.');
     }
