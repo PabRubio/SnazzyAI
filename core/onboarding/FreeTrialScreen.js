@@ -1144,41 +1144,39 @@ export default function FreeTrialScreen({ navigation }) {
                 {/* Generate Recommendations Button - At the very bottom */}
                 {!hasGeneratedRecommendations && analysisResult.isValidPhoto && (
                   <View style={{ paddingBottom: insets.bottom + 12 }}>
-                    <TouchableOpacity
-                      style={[
-                        styles.generateButton,
-                        (isGeneratingRecommendations || isSigningIn) && styles.generateButtonDisabled
-                      ]}
-                      onPress={handleGenerateRecommendations}
-                      disabled={isGeneratingRecommendations || isSigningIn}
-                      activeOpacity={0.7}
-                    >
-                      {isGeneratingRecommendations ? (
-                        <>
-                          <ActivityIndicator size="small" color="#fff" style={styles.buttonLoader} />
-                          <Text style={styles.generateButtonText} numberOfLines={1}>Fetching Recommendations</Text>
-                        </>
-                      ) : isSigningIn ? (
-                        <>
-                          <ActivityIndicator size="small" color="#fff" style={styles.buttonLoader} />
-                          <Text style={styles.generateButtonText} numberOfLines={1}>Fetching Recommendations</Text>
-                        </>
-                      ) : (
-                        <>
-                          {Platform.OS === 'ios' ? (
-                            <>
-                              <Ionicons name="logo-apple" size={20} color="#fff" style={styles.buttonIcon} />
-                              <Text style={styles.generateButtonText} numberOfLines={1}>{buttonText}</Text>
-                            </>
-                          ) : (
-                            <>
-                              <Image source={require('../../assets/logo-google.png')} style={styles.googleIconImage} />
-                              <Text style={styles.generateButtonText} numberOfLines={1}>Generate Recommendations</Text>
-                            </>
-                          )}
-                        </>
-                      )}
-                    </TouchableOpacity>
+                    {Platform.OS === 'ios' && !isAuthenticated && !isGeneratingRecommendations && !isSigningIn ? (
+                      <AppleAuthentication.AppleAuthenticationButton
+                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                        onPress={handleGenerateRecommendations}
+                        style={styles.appleGenerateButton}
+                        cornerRadius={12}
+                      />
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          styles.generateButton,
+                          (isGeneratingRecommendations || isSigningIn) && styles.generateButtonDisabled
+                        ]}
+                        onPress={handleGenerateRecommendations}
+                        disabled={isGeneratingRecommendations || isSigningIn}
+                        activeOpacity={0.7}
+                      >
+                        {isGeneratingRecommendations || isSigningIn ? (
+                          <>
+                            <ActivityIndicator size="small" color="#fff" style={styles.buttonLoader} />
+                            <Text style={styles.generateButtonText} numberOfLines={1}>Fetching Recommendations</Text>
+                          </>
+                        ) : Platform.OS === 'android' ? (
+                          <>
+                            <Image source={require('../../assets/logo-google.png')} style={styles.googleIconImage} />
+                            <Text style={styles.generateButtonText} numberOfLines={1}>Generate Recommendations</Text>
+                          </>
+                        ) : (
+                          <Text style={styles.generateButtonText} numberOfLines={1}>{buttonText}</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
 
@@ -1336,6 +1334,10 @@ const styles = StyleSheet.create({
   generateButtonDisabled: {
     backgroundColor: '#999',
     opacity: 0.5,
+  },
+  appleGenerateButton: {
+    width: '100%',
+    height: 48,
   },
   generateButtonText: {
     color: '#fff',

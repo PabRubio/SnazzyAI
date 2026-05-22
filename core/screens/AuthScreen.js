@@ -259,20 +259,29 @@ export default function AuthScreen({ navigation }) {
                 : 'Comenzar'}</Text>
             </TouchableOpacity>
 
-            <View style={styles.signInContainer}>
-              <Text style={styles.signInText}>{language === 'en'
-                ? 'Already have an account? '
-                : '¿Ya tienes una cuenta? '}</Text>
-              <TouchableOpacity
-                disabled={loading}
-                activeOpacity={0.7}
-                onPress={authHandler}
-              >
-                <Text style={styles.signInLink}>{language === 'en'
-                  ? Platform.OS === 'ios' ? 'Sign in with Apple' : 'Sign in'
-                  : Platform.OS === 'ios' ? 'Iniciar sesión con Apple' : 'Iniciar sesión'}</Text>
-              </TouchableOpacity>
-            </View>
+            {Platform.OS === 'ios' ? (
+              <View style={styles.appleSignInContainer}>
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  style={styles.appleSignInButton}
+                  onPress={authHandler}
+                  cornerRadius={12}
+                />
+              </View>
+            ) : (
+              <View style={styles.signInContainer}>
+                <Text style={styles.signInText}>{language === 'en'
+                  ? 'Already have an account? ' : '¿Ya tienes una cuenta? '}</Text>
+                <TouchableOpacity
+                  disabled={loading}
+                  activeOpacity={0.7}
+                  onPress={authHandler}
+                >
+                  <Text style={styles.signInLink}>{language === 'en' ? 'Sign in' : 'Iniciar sesión'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </ScrollView>
       )}
@@ -400,6 +409,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  appleSignInContainer: {
+    alignItems: 'center',
+  },
+  appleSignInButton: {
+    width: '100%',
+    height: 48,
   },
   signInText: {
     fontSize: 14,
