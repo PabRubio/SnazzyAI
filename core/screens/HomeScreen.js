@@ -13,7 +13,7 @@ import { usePlacement, useUser } from 'expo-superwall';
 import { supabase } from '../../supabase/services/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '../components/navigation/NavigationContext';
-import { getProfile, updateProfile, addFavorite, removeFavorite } from '../../supabase/services/supabaseHelpers';
+import { getProfile, updateProfile, addFavorite, removeFavorite, deleteAccount } from '../../supabase/services/supabaseHelpers';
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,6 +46,7 @@ export default function HomeScreen({ navigation }) {
   const { subscriptionStatus } = useUser();
   const [saving, setSaving] = useState(false);
   const [favorites, setFavorites] = useState([]);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [favoriteItems, setFavoriteItems] = useState(new Map()); // Map: itemId -> database UUID
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const { switchToAuthStack } = useNavigation();
@@ -554,14 +555,40 @@ export default function HomeScreen({ navigation }) {
 
   // Handle delete account
   const handleDeleteAccount = async () => {
+    if (deletingAccount) return;
+
     Alert.alert(
       'Delete Account',
-      'To delete your account and all associated data, please contact us at contact@pablorubio.com with your account email. We will process your request within 24 hours.',
+      'Are you sure you want to permanently delete your account?',
       [
-        { text: 'OK' }
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: performDeleteAccount
+        }
       ]
     );
   };
+
+  async function performDeleteAccount() {
+    if (deletingAccount) return;
+
+    try {
+      setDeletingAccount(true);
+      await deleteAccount();
+      await supabase.auth.signOut({ scope: 'local' }).catch((signOutError) => {
+        console.error('Error clearing local session after account deletion:', signOutError);
+      });
+      setDeletingAccount(false);
+      switchToAuthStack();
+      Alert.alert('Account Deleted');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      setDeletingAccount(false);
+      Alert.alert('Error', 'Failed to delete account. Please try again.');
+    }
+  }
 
   // Reset settings to saved values (discard unsaved changes)
   const resetSettings = async () => {
@@ -1456,12 +1483,22 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.deleteButton}
+                style={[styles.deleteButton, deletingAccount && styles.deleteButtonDisabled]}
                 onPress={handleDeleteAccount}
+                disabled={deletingAccount}
                 activeOpacity={0.7}
               >
-                <Ionicons name="trash-outline" size={20} color="#FF3B30" style={styles.buttonIcon} />
-                <Text style={styles.deleteButtonText}>Delete Account</Text>
+                {deletingAccount ? (
+                  <>
+                    <ActivityIndicator color="#FF3B30" size="small" style={styles.buttonIcon} />
+                    <Text style={styles.deleteButtonText}>Deleting...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="trash-outline" size={20} color="#FF3B30" style={styles.buttonIcon} />
+                    <Text style={styles.deleteButtonText}>Delete Account</Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               <Text style={styles.versionFooter}>Version 1.0.0</Text>
@@ -1935,6 +1972,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.5,
   },
   deleteButtonText: {
     color: '#FF3B30',

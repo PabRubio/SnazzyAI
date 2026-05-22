@@ -376,3 +376,20 @@ export const updateProfile = async (profileData) => {
     throw new Error('Failed to update profile')
   }
 }
+
+/**
+ * Delete the authenticated user's account and associated data.
+ */
+export const deleteAccount = async () => {
+  try {
+    const { data, error } = await supabase.functions.invoke('delete-account', {
+      method: 'POST'
+    })
+
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error deleting account:', error)
+    throw new Error('Failed to delete account')
+  }
+}
