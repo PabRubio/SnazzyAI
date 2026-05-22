@@ -213,7 +213,7 @@ export default function AuthScreen({ navigation }) {
               />
             </View>
 
-            <View style={styles.languageToggleContainer}>
+            {/* <View style={styles.languageToggleContainer}>
               <View style={styles.languageToggle}>
                 <TouchableOpacity
                   style={[styles.languageOption, language === 'en' && styles.languageOptionActive]}
@@ -231,7 +231,7 @@ export default function AuthScreen({ navigation }) {
                   <Text style={styles.flagEmoji}>🇪🇸</Text><Text style={styles.langText}> ES</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </View> */}
           </View>
 
           <View style={styles.screenshotWrapper}>
