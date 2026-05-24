@@ -7,6 +7,56 @@ import { supabase } from './supabase'
 import { decode } from 'base64-arraybuffer'
 
 // =====================================================
+// AUTH PROFILE FUNCTIONS
+// =====================================================
+
+const formatAppleFullName = (fullName) => {
+  if (!fullName) return null
+
+  const name = [
+    fullName.givenName,
+    fullName.middleName,
+    fullName.familyName,
+  ].filter(Boolean).join(' ').trim()
+
+  return name || null
+}
+
+export const syncAppleProfileFromCredential = async (credential, user) => {
+  try {
+    if (!user?.id) return
+
+    const name = formatAppleFullName(credential?.fullName)
+    const email = credential?.email || user.email || null
+
+    if (name) {
+      const { error } = await supabase.auth.updateUser({
+        data: { name }
+      })
+
+      if (error) {
+        console.error('Failed to update Apple user metadata:', error)
+      }
+    }
+
+    const profileUpdates = { id: user.id }
+
+    if (name) profileUpdates.name = name
+    if (email) profileUpdates.email = email
+
+    if (Object.keys(profileUpdates).length === 1) return
+
+    const { error } = await supabase
+      .from('profiles')
+      .upsert(profileUpdates)
+
+    if (error) throw error
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+// =====================================================
 // STORAGE FUNCTIONS
 // =====================================================
 

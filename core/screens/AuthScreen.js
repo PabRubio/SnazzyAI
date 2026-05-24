@@ -7,6 +7,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlacement } from 'expo-superwall';
 import { supabase } from '../../supabase/services/supabase';
+import { syncAppleProfileFromCredential } from '../../supabase/services/supabaseHelpers';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useNavigation } from '../components/navigation/NavigationContext';
 
@@ -147,6 +148,7 @@ export default function AuthScreen({ navigation }) {
       }
 
       console.log('Successfully signed in:', data.user.email);
+      await syncAppleProfileFromCredential(credential, data.user);
 
       // Manually switch to app stack
       switchToAppStack();

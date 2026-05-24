@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../supabase/services/supabase';
 import { useNavigation } from '../components/navigation/NavigationContext';
-import { uploadPhoto, saveOutfitAnalysis, saveRecommendations } from '../../supabase/services/supabaseHelpers';
+import { uploadPhoto, saveOutfitAnalysis, saveRecommendations, syncAppleProfileFromCredential } from '../../supabase/services/supabaseHelpers';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { usePlacement, useSuperwall } from 'expo-superwall';
@@ -529,6 +529,7 @@ export default function FreeTrialScreen({ navigation }) {
       if (error) throw error;
 
       console.log('Successfully signed in:', data.user.email);
+      await syncAppleProfileFromCredential(credential, data.user);
 
       // Check if this is an existing user (has profile data already)
       const { data: profile } = await supabase

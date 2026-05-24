@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.pabrubio.snazzy"
+      "bundleIdentifier": "com.pabrubio.snazzy",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -31,7 +32,8 @@
       "superwallApiKey": "pk_Eg6xXf9tdLDmLgwI1Yni_"
     },
     "plugins": [
-      "react-native-edge-to-edge"
+      "react-native-edge-to-edge",
+      "expo-apple-authentication"
     ]
   }
 }
