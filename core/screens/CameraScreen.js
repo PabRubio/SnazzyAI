@@ -1839,6 +1839,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#999',
     marginTop: 12,
+    textAlign: 'center',
+    width: '100%',
   },
   recommendationsList: {
     paddingBottom: 20,

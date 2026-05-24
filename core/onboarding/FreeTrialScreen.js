@@ -1135,7 +1135,7 @@ export default function FreeTrialScreen({ navigation }) {
                     !hasGeneratedRecommendations && (
                       <View style={[styles.placeholderContainer, { paddingBottom: placeholderPaddingBottom }]}>
                         <Ionicons name="shirt-outline" size={48} color="#ccc" />
-                        <Text style={styles.placeholderText}>Nothing to see here ;)</Text>
+                        <Text style={styles.placeholderText}>Sign up to generate recommendations</Text>
                       </View>
                     )
                   )}
@@ -1146,7 +1146,7 @@ export default function FreeTrialScreen({ navigation }) {
                   <View style={{ paddingBottom: insets.bottom + 12 }}>
                     {Platform.OS === 'ios' && !isAuthenticated && !isGeneratingRecommendations && !isSigningIn ? (
                       <AppleAuthentication.AppleAuthenticationButton
-                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
                         buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
                         onPress={handleGenerateRecommendations}
                         style={styles.appleGenerateButton}
@@ -1376,6 +1376,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#999',
     marginTop: 12,
+    textAlign: 'center',
+    width: '100%',
   },
   recommendationsList: {
     paddingBottom: 20,
