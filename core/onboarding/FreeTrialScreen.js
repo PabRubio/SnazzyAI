@@ -1135,7 +1135,7 @@ export default function FreeTrialScreen({ navigation }) {
                     !hasGeneratedRecommendations && (
                       <View style={[styles.placeholderContainer, { paddingBottom: placeholderPaddingBottom }]}>
                         <Ionicons name="shirt-outline" size={48} color="#ccc" />
-                        <Text style={styles.placeholderText}>Sign up to generate recommendations</Text>
+                        <Text style={styles.placeholderText}>Sign up to generate links!</Text>
                       </View>
                     )
                   )}
@@ -1376,8 +1376,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#999',
     marginTop: 12,
-    textAlign: 'center',
-    width: '100%',
   },
   recommendationsList: {
     paddingBottom: 20,
