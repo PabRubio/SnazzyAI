@@ -1528,7 +1528,7 @@ export default function HomeScreen({ navigation }) {
           activeOpacity={0.7}
         >
           <Image
-            source={require('../../assets/logo.png')}
+            source={require('../../assets/icon.png')}
             style={styles.plusIconContainer}
             resizeMode="cover"
           />
