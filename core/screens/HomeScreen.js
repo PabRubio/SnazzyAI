@@ -580,7 +580,13 @@ export default function HomeScreen({ navigation }) {
       setDeletingAccount(true);
       await deleteAccount();
       await supabase.auth.signOut({ scope: 'local' });
+
       switchToAuthStack();
+
+      Alert.alert(
+        'Account Deleted',
+        'Your Snazzy AI account has been deleted. If you have an active subscription, deleting your account does not cancel billing. Manage or cancel subscriptions through your settings.');
+
     } catch (error) {
       console.error('Error deleting account:', error);
       deletingAccountRef.current = false;
