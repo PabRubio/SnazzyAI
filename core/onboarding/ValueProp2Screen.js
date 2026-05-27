@@ -1,6 +1,6 @@
 import React from 'react';
 import Text from '../components/Text';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { Image, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +44,13 @@ export default function ValueProp2Screen({ navigation }) {
         <View style={styles.content}>
           <Text style={styles.title}>Product Suggestions</Text>
           <Text style={styles.subtitle}>Selfie + preferences + AI = personalized clothing links</Text>
+          <View style={styles.imageContainer}>
+            <Image
+              source={require('../../assets/onboarding/onboarding2.png')}
+              style={styles.onboardingImage}
+              resizeMode="contain"
+            />
+          </View>
         </View>
 
         {/* Bottom bar with Continue button */}
@@ -111,7 +118,16 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 32,
+  },
+  imageContainer: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingImage: {
+    width: '100%',
+    height: '100%',
   },
   bottomBar: {
     paddingHorizontal: 20,

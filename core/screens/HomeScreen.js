@@ -583,6 +583,8 @@ export default function HomeScreen({ navigation }) {
 
       switchToAuthStack();
 
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       Alert.alert(
         'Account Deleted',
         'Your Snazzy AI account has been deleted. If you have an active subscription, deleting your account does not cancel billing. Manage or cancel subscriptions through your settings.');
