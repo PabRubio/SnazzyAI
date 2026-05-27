@@ -46,7 +46,7 @@ export default function ValueProp1Screen({ navigation }) {
           <Text style={styles.subtitle}>AI will help you make more rational wardrobe decisions</Text>
           <View style={styles.imageContainer}>
             <Image
-              source={require('../../assets/onboarding/onboarding1.png')}
+              source={require('../../assets/onboarding/screen-1.png')}
               style={styles.onboardingImage}
               resizeMode="contain"
             />

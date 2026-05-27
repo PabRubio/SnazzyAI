@@ -46,7 +46,7 @@ export default function ValueProp2Screen({ navigation }) {
           <Text style={styles.subtitle}>Selfie + preferences + AI = personalized clothing links</Text>
           <View style={styles.imageContainer}>
             <Image
-              source={require('../../assets/onboarding/onboarding2.png')}
+              source={require('../../assets/onboarding/screen-2.png')}
               style={styles.onboardingImage}
               resizeMode="contain"
             />

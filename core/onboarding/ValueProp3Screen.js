@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
 import Text from '../components/Text';
+import React, { useRef, useState } from 'react';
 import { Image, PanResponder, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_STEPS = 15;
 const CURRENT_STEP = 14;
+
 const SLIDER_VERTICAL_INSET = 60;
 const SLIDER_HORIZONTAL_INSET = 50;
+
 const ONBOARDING_IMAGE_ASPECT_RATIO = 1080 / 1920;
 
 export default function ValueProp3Screen({ navigation }) {
@@ -122,13 +124,13 @@ export default function ValueProp3Screen({ navigation }) {
           <View style={styles.imageContainer}>
             <View style={styles.comparisonFrame} onLayout={handleComparisonLayout}>
               <Image
-                source={require('../../assets/onboarding/onboarding4.png')}
+                source={require('../../assets/onboarding/screen-4.png')}
                 style={styles.comparisonImage}
                 resizeMode="contain"
               />
               <View style={[styles.comparisonClip, { width: sliderPosition }]}>
                 <Image
-                  source={require('../../assets/onboarding/onboarding3.png')}
+                  source={require('../../assets/onboarding/screen-3.png')}
                   style={[
                     styles.comparisonImage,
                     comparisonWidth > 0 ? { width: comparisonWidth } : null,
