@@ -188,7 +188,7 @@ export default function HomeScreen({ navigation }) {
   // Predefined options
   const genderOptions = ['Male', 'Female', 'Other'];
   const currencyOptions = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD'];
-  const languageOptions = ['English', 'Spanish'];
+  const languageOptions = ['English'/*, 'Spanish'*/];
   const shirtSizeOptions = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
   const pantsSizeOptions = ['28', '30', '32', '34', '36', '38', '40', '42'];
   const shoeSizeOptions = ['6', '7', '8', '9', '10', '11', '12', '13'];

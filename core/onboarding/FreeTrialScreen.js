@@ -1136,7 +1136,7 @@ export default function FreeTrialScreen({ navigation }) {
                     !hasGeneratedRecommendations && (
                       <View style={[styles.placeholderContainer, { paddingBottom: placeholderPaddingBottom }]}>
                         <Ionicons name="shirt-outline" size={48} color="#ccc" />
-                        <Text style={styles.placeholderText}>Sign up to generate links!</Text>
+                        <Text style={styles.placeholderText}>Sign up to generate items!</Text>
                       </View>
                     )
                   )}
