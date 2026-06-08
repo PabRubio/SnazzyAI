@@ -29,7 +29,8 @@
       "eas": {
         "projectId": "8eb8cc86-6535-4bab-ba2c-0d85818b220c"
       },
-      "superwallApiKey": "pk_Eg6xXf9tdLDmLgwI1Yni_"
+      "superwallApiKey": "pk_Eg6xXf9tdLDmLgwI1Yni_",
+      "superwallIosKey": "pk_qgcOKqqn6zGDjPDghi01l"
     },
     "plugins": [
       "react-native-edge-to-edge",

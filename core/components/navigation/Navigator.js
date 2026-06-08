@@ -25,11 +25,12 @@ function AppNavigatorContent() {
   }
 
   const superwallApiKey = Constants.expoConfig?.extra?.superwallApiKey;
+  const superwallApiKey2 = Constants.expoConfig?.extra?.superwallIosKey;
 
   return (
     <SuperwallProvider
       apiKeys={{
-        ios: superwallApiKey,
+        ios: superwallApiKey2,
         android: superwallApiKey
       }}
     >
