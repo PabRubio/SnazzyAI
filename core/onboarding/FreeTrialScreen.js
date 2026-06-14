@@ -77,8 +77,10 @@ export default function FreeTrialScreen({ navigation }) {
 
   const { dismiss } = useSuperwall();
   const { registerPlacement } = usePlacement({
-    onDismiss: () => {
-      console.log('Paywall dismissed');
+    onDismiss: (info, result) => {
+      if (['purchased', 'restored'].includes(result?.type)) {
+        switchToAppStack();
+      }
     },
     onError: (error) => {
       console.error('Paywall error:', error);
