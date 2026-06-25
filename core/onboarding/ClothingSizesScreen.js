@@ -9,7 +9,7 @@ import { useOnboarding } from './OnboardingContext';
 const TOTAL_STEPS = 15;
 const CURRENT_STEP = 10;
 
-const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const PANTS_SIZES = ['28', '30', '32', '34', '36', '38', '40', '42'];
 const SHOE_SIZES = ['6', '7', '8', '9', '10', '11', '12', '13'];
 

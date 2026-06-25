@@ -15,7 +15,7 @@ CREATE TABLE profiles (
   gender TEXT,
   location TEXT,
   height INTEGER, -- in cm
-  weight DECIMAL,
+  weight INTEGER, -- in kg
   currency TEXT DEFAULT 'USD',
   price_min INTEGER,
   price_max INTEGER,

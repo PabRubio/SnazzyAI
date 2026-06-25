@@ -64,6 +64,7 @@ export default function FreeTrialScreen({ navigation }) {
   const [hasGeneratedRecommendations, setHasGeneratedRecommendations] = useState(false);
   const [recommendationClickCount, setRecommendationClickCount] = useState(0);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const hasCameraPermission = cameraPermission?.granted === true;
   const [showInstruction, setShowInstruction] = useState(true);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const cameraRef = useRef(null);
@@ -302,8 +303,10 @@ export default function FreeTrialScreen({ navigation }) {
 
       let birthDate = null;
       if (onboardingData.birth) {
-        const date = new Date(onboardingData.birth);
-        birthDate = date.toISOString().split('T')[0];
+        const year = onboardingData.birth.getFullYear();
+        const month = String(onboardingData.birth.getMonth() + 1).padStart(2, '0');
+        const day = String(onboardingData.birth.getDate()).padStart(2, '0');
+        birthDate = `${year}-${month}-${day}`;
       }
 
       const profileData = {
@@ -909,6 +912,12 @@ export default function FreeTrialScreen({ navigation }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (cameraPermission?.granted) {
+      setIsCameraReady(false);
+    }
+  }, [cameraPermission?.granted]);
+
 
   // Animated styles
   const buttonAnimatedStyle = useAnimatedStyle(() => {
@@ -964,21 +973,23 @@ export default function FreeTrialScreen({ navigation }) {
         ) : (
           // Show camera view when no photo is captured
           <>
-            <CameraView
-              facing="back"
-              ref={cameraRef}
-              enableTorch={torchEnabled}
-              style={StyleSheet.absoluteFillObject}
-              faceDetectorSettings={{
-                mode: 'none',
-              }}
-              onCameraReady={() => {
-                // Add a small delay to ensure camera is fully initialized
-                setTimeout(() => {
-                  setIsCameraReady(true);
-                }, 500);
-              }}
-            />
+            {hasCameraPermission && (
+              <CameraView
+                facing="back"
+                ref={cameraRef}
+                enableTorch={torchEnabled}
+                style={StyleSheet.absoluteFillObject}
+                faceDetectorSettings={{
+                  mode: 'none',
+                }}
+                onCameraReady={() => {
+                  // Add a small delay to ensure camera is fully initialized
+                  setTimeout(() => {
+                    setIsCameraReady(true);
+                  }, 500);
+                }}
+              />
+            )}
             {/* Corner Brackets */}
             <View style={styles.cornerBracketsContainer} pointerEvents="none">
               <View style={[styles.cornerBracket, styles.cornerTopLeft]} />

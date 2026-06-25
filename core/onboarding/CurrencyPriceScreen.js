@@ -1,7 +1,7 @@
 import React from 'react';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
-import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Alert, Keyboard } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +34,8 @@ export default function CurrencyPriceScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
 
   const handleContinue = () => {
+    Keyboard.dismiss();
+
     if (data.currency && data.priceMin && data.priceMax) {
       const minPrice = parseInt(data.priceMin);
       const maxPrice = parseInt(data.priceMax);
@@ -118,6 +120,7 @@ export default function CurrencyPriceScreen({ navigation }) {
                   value={data.priceMin}
                   onChangeText={(text) => updateData({ priceMin: text.replace(/[^0-9]/g, '') })}
                   keyboardType="number-pad"
+                  returnKeyType="next"
                   maxLength={5}
                 />
               </View>
@@ -130,7 +133,9 @@ export default function CurrencyPriceScreen({ navigation }) {
                   placeholderTextColor="#999"
                   value={data.priceMax}
                   onChangeText={(text) => updateData({ priceMax: text.replace(/[^0-9]/g, '') })}
+                  onSubmitEditing={() => Keyboard.dismiss()}
                   keyboardType="number-pad"
+                  returnKeyType="done"
                   maxLength={5}
                 />
               </View>

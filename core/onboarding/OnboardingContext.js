@@ -8,7 +8,7 @@ const INITIAL_STATE = {
   height: '',
   weight: '',
   location: '',
-  currency: null,
+  currency: 'USD',
   priceMin: '',
   priceMax: '',
   shirtSize: null,

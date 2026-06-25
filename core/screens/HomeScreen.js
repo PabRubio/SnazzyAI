@@ -393,12 +393,6 @@ export default function HomeScreen({ navigation }) {
         return;
       }
 
-      if (!location) {
-        Alert.alert('Location Required', 'Please detect your location.', [{ text: 'OK' }]);
-        setSaving(false);
-        return;
-      }
-
       if (!height) {
         Alert.alert('Height Required', 'Please enter your height.', [{ text: 'OK' }]);
         setSaving(false);
@@ -503,7 +497,7 @@ export default function HomeScreen({ navigation }) {
         gender: gender || null,
         location: location || null,
         height: height ? parseInt(height) : null,
-        weight: weight ? parseFloat(weight) : null,
+        weight: weight ? parseInt(weight) : null,
         currency,
         price_min: priceMin ? parseInt(priceMin) : null,
         price_max: priceMax ? parseInt(priceMax) : null,
@@ -599,6 +593,7 @@ export default function HomeScreen({ navigation }) {
 
   // Reset settings to saved values (discard unsaved changes)
   const resetSettings = async () => {
+    setShowBirthPicker(false);
     await loadProfileData();
   };
 
@@ -1307,10 +1302,10 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.settingsCard}>
                 <Text style={styles.settingsLabel}>Favorite Styles</Text>
                 <TextInput
-                  style={[styles.settingsInput, styles.textAreaInput]}
-                  placeholder="e.g., Old-Money style"
-                  placeholderTextColor="#999"
                   value={favoriteStyles}
+                  style={[styles.settingsInput, styles.textAreaInput]}
+                  placeholder="e.g., Old Money style"
+                  placeholderTextColor="#999"
                   onChangeText={(text) => {
                     // Allow only letters, spaces, commas, and hyphens
                     let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
@@ -1345,10 +1340,10 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.settingsCard}>
                 <Text style={styles.settingsLabel}>Favorite Brands</Text>
                 <TextInput
+                  value={favoriteBrands}
                   style={[styles.settingsInput, styles.textAreaInput]}
                   placeholder="e.g., Nike, Adidas, Zara"
                   placeholderTextColor="#999"
-                  value={favoriteBrands}
                   onChangeText={(text) => {
                     // Allow only letters, spaces, and commas
                     let filtered = text.replace(/[^a-zA-Z\s,]/g, '');

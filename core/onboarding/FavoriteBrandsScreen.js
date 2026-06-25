@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
 import { StyleSheet, View, TouchableOpacity, Keyboard } from 'react-native';
@@ -12,12 +12,21 @@ const CURRENT_STEP = 12;
 
 const POPULAR_BRANDS = ['Nike', 'Adidas', 'Zara', 'Uniqlo', 'H&M', 'Mango', 'Calvin Klein', 'Ralph Lauren'];
 
+const parseFavoriteText = (text) =>
+  text
+    .split(',')
+    .map(item => item.trim())
+    .filter(item => item.length > 0);
+
 export default function FavoriteBrandsScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
   const insets = useSafeAreaInsets();
+  const [brandsText, setBrandsText] = useState((data.favoriteBrands || []).join(', '));
+  const selectedBrands = parseFavoriteText(brandsText);
 
   const handleContinue = () => {
-    Keyboard.dismiss(); // Dismiss keyboard
+    Keyboard.dismiss();
+    updateData({ favoriteBrands: selectedBrands });
     navigation.navigate('OnboardingQuestionnaire3');
   };
 
@@ -26,16 +35,15 @@ export default function FavoriteBrandsScreen({ navigation }) {
   };
 
   const toggleBrand = (brand) => {
-    const currentBrands = data.favoriteBrands || [];
-    if (currentBrands.includes(brand)) {
-      updateData({ favoriteBrands: currentBrands.filter(b => b !== brand) });
+    if (selectedBrands.includes(brand)) {
+      setBrandsText(selectedBrands.filter(b => b !== brand).join(', '));
     } else {
-      updateData({ favoriteBrands: [...currentBrands, brand] });
+      setBrandsText([...selectedBrands, brand].join(', '));
     }
   };
 
   const isBrandSelected = (brand) => {
-    return (data.favoriteBrands || []).includes(brand);
+    return selectedBrands.includes(brand);
   };
 
   const progress = CURRENT_STEP / TOTAL_STEPS;
@@ -65,10 +73,10 @@ export default function FavoriteBrandsScreen({ navigation }) {
 
           <View style={styles.inputGroup}>
             <TextInput
+              value={brandsText}
               style={styles.input}
               placeholder="e.g., Nike, Adidas, Zara"
               placeholderTextColor="#999"
-              value={(data.favoriteBrands || []).join(', ')}
               onChangeText={(text) => {
                 let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
                 filtered = filtered.replace(/^[,\s]+/, '');
@@ -76,9 +84,9 @@ export default function FavoriteBrandsScreen({ navigation }) {
                 filtered = filtered.replace(/,+/g, ',');
                 filtered = filtered.replace(/\s+,/g, ',');
                 filtered = filtered.replace(/,(?!\s)/g, ', ');
-                const brandsArray = filtered.split(',').map(b => b.trim()).filter(b => b);
-                updateData({ favoriteBrands: brandsArray });
+                setBrandsText(filtered);
               }}
+              onBlur={() => setBrandsText(brandsText.replace(/[,\s]+$/, ''))}
               multiline
               numberOfLines={3}
               autoCapitalize="words"
@@ -116,10 +124,10 @@ export default function FavoriteBrandsScreen({ navigation }) {
         {/* Bottom bar with Continue button */}
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
-            style={[styles.continueButton, !(data.favoriteBrands || []).length && styles.continueButtonDisabled]}
+            style={[styles.continueButton, !selectedBrands.length && styles.continueButtonDisabled]}
+            disabled={!selectedBrands.length}
             onPress={handleContinue}
             activeOpacity={0.7}
-            disabled={!(data.favoriteBrands || []).length}
           >
             <Text style={styles.continueButtonText}>Continue</Text>
           </TouchableOpacity>

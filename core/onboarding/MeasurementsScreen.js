@@ -99,8 +99,8 @@ export default function MeasurementsScreen({ navigation }) {
                 value={data.height}
                 onChangeText={(text) => updateData({ height: text.replace(/[^0-9]/g, '') })}
                 keyboardType="number-pad"
-                maxLength={3}
                 returnKeyType="next"
+                maxLength={3}
               />
               {data.height && cmToFt(parseInt(data.height)) && (
                 <Text style={styles.conversionText}>≈ {cmToFt(parseInt(data.height))}</Text>
@@ -117,10 +117,10 @@ export default function MeasurementsScreen({ navigation }) {
                 placeholderTextColor="#999"
                 value={data.weight}
                 onChangeText={(text) => updateData({ weight: text.replace(/[^0-9]/g, '') })}
-                keyboardType="number-pad"
-                maxLength={3}
-                returnKeyType="done"
                 onSubmitEditing={() => Keyboard.dismiss()}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                maxLength={3}
               />
               {data.weight && kgToLb(parseInt(data.weight)) && (
                 <Text style={styles.conversionText}>≈ {kgToLb(parseInt(data.weight))}</Text>
