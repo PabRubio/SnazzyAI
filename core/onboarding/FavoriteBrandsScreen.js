@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useState } from 'react';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
 import { StyleSheet, View, TouchableOpacity, Keyboard } from 'react-native';
@@ -21,11 +22,12 @@ const parseFavoriteText = (text) =>
 export default function FavoriteBrandsScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
   const insets = useSafeAreaInsets();
+
   const [brandsText, setBrandsText] = useState((data.favoriteBrands || []).join(', '));
   const selectedBrands = parseFavoriteText(brandsText);
 
   const handleContinue = () => {
-    Keyboard.dismiss();
+    Keyboard.dismiss(); // Dismiss keyboard
     updateData({ favoriteBrands: selectedBrands });
     navigation.navigate('OnboardingQuestionnaire3');
   };
@@ -73,10 +75,11 @@ export default function FavoriteBrandsScreen({ navigation }) {
 
           <View style={styles.inputGroup}>
             <TextInput
-              value={brandsText}
               style={styles.input}
               placeholder="e.g., Nike, Adidas, Zara"
               placeholderTextColor="#999"
+              value={brandsText}
+
               onChangeText={(text) => {
                 let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
                 filtered = filtered.replace(/^[,\s]+/, '');

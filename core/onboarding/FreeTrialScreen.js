@@ -913,9 +913,7 @@ export default function FreeTrialScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    if (cameraPermission?.granted) {
-      setIsCameraReady(false);
-    }
+    cameraPermission?.granted && setIsCameraReady(false);
   }, [cameraPermission?.granted]);
 
 

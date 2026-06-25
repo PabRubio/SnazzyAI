@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useState } from 'react';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
 import { StyleSheet, View, TouchableOpacity, Keyboard } from 'react-native';
@@ -21,11 +22,12 @@ const parseFavoriteText = (text) =>
 export default function FavoriteStylesScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
   const insets = useSafeAreaInsets();
+
   const [stylesText, setStylesText] = useState((data.favoriteStyles || []).join(', '));
   const selectedStyles = parseFavoriteText(stylesText);
 
   const handleContinue = () => {
-    Keyboard.dismiss();
+    Keyboard.dismiss(); // Dismiss keyboard
     updateData({ favoriteStyles: selectedStyles });
     navigation.navigate('OnboardingFavoriteBrands');
   };
@@ -73,10 +75,11 @@ export default function FavoriteStylesScreen({ navigation }) {
 
           <View style={styles.inputGroup}>
             <TextInput
-              value={stylesText}
               style={styles.input}
               placeholder="e.g., Old Money style"
               placeholderTextColor="#999"
+              value={stylesText}
+
               onChangeText={(text) => {
                 let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
                 filtered = filtered.replace(/^[,\s]+/, '');
@@ -125,9 +128,9 @@ export default function FavoriteStylesScreen({ navigation }) {
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             style={[styles.continueButton, !selectedStyles.length && styles.continueButtonDisabled]}
+            disabled={!selectedStyles.length}
             onPress={handleContinue}
             activeOpacity={0.7}
-            disabled={!selectedStyles.length}
           >
             <Text style={styles.continueButtonText}>Continue</Text>
           </TouchableOpacity>

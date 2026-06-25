@@ -1302,10 +1302,11 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.settingsCard}>
                 <Text style={styles.settingsLabel}>Favorite Styles</Text>
                 <TextInput
-                  value={favoriteStyles}
                   style={[styles.settingsInput, styles.textAreaInput]}
                   placeholder="e.g., Old Money style"
                   placeholderTextColor="#999"
+                  value={favoriteStyles}
+
                   onChangeText={(text) => {
                     // Allow only letters, spaces, commas, and hyphens
                     let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
@@ -1340,10 +1341,11 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.settingsCard}>
                 <Text style={styles.settingsLabel}>Favorite Brands</Text>
                 <TextInput
-                  value={favoriteBrands}
                   style={[styles.settingsInput, styles.textAreaInput]}
                   placeholder="e.g., Nike, Adidas, Zara"
                   placeholderTextColor="#999"
+                  value={favoriteBrands}
+
                   onChangeText={(text) => {
                     // Allow only letters, spaces, and commas
                     let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
