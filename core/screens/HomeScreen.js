@@ -615,6 +615,11 @@ export default function HomeScreen({ navigation }) {
           return;
         }
 
+        if (Platform.OS === 'android') {
+          navigation.navigate('Camera');
+          return;
+        }
+
         return registerPlacement({
           placement: 'campaign_trigger'
         });
@@ -1505,7 +1510,7 @@ export default function HomeScreen({ navigation }) {
                 )}
               </TouchableOpacity>
 
-              <Text style={styles.versionFooter}>Version 1.0.0</Text>
+              <Text style={styles.versionFooter}>Version 1.0.1</Text>
             </View>
           </View>
         )}
