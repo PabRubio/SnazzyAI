@@ -50,6 +50,35 @@ export default function FreeTrialScreen({ navigation }) {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [permissionRequested, setPermissionRequested] = useState(false);
   const { data: onboardingData } = useOnboarding();
+  const userProfile = useMemo(() => {
+
+    let birthDate = null;
+    if (onboardingData.birth) {
+      const year = onboardingData.birth.getFullYear();
+      const month = String(onboardingData.birth.getMonth() + 1).padStart(2, '0');
+      const day = String(onboardingData.birth.getDate()).padStart(2, '0');
+      birthDate = `${year}-${month}-${day}`;
+    }
+
+    return {
+      birth: birthDate,
+      gender: onboardingData.gender || null,
+      location: onboardingData.location || null,
+      height: onboardingData.height ? parseInt(onboardingData.height) : null,
+      weight: onboardingData.weight ? parseInt(onboardingData.weight) : null,
+      currency: onboardingData.currency || null,
+      price_min: onboardingData.priceMin ? parseInt(onboardingData.priceMin) : null,
+      price_max: onboardingData.priceMax ? parseInt(onboardingData.priceMax) : null,
+      shirt_size: onboardingData.shirtSize || null,
+      pants_size: onboardingData.pantsSize || null,
+      shoe_size: onboardingData.shoeSize || null,
+      favorite_brands: onboardingData.favoriteBrands || [],
+      favorite_styles: onboardingData.favoriteStyles || [],
+      response_1: onboardingData.questionnaire1 ?? null,
+      response_2: onboardingData.questionnaire2 || null,
+      response_3: onboardingData.questionnaire3 || null,
+    };
+  }, [onboardingData]);
   const { switchToAppStack } = useNavigation();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -146,12 +175,6 @@ export default function FreeTrialScreen({ navigation }) {
       try {
         console.log('Starting outfit analysis...');
 
-        const userProfile = {
-          gender: onboardingData.gender,
-          favorite_styles: onboardingData.favoriteStyles || [],
-          favorite_brands: onboardingData.favoriteBrands || [],
-        };
-
         const { data, error } = await supabase.functions.invoke('analyze-outfit', {
           body: {
             base64Image: photo.base64,
@@ -181,19 +204,9 @@ export default function FreeTrialScreen({ navigation }) {
             return currentUri;
           }
 
-          if (analysisData.isValidPhoto === false) {
-            setIsAnalyzing(false);
-            setIsProcessingCapture(false);
-            bottomSheetRef.current?.close();
-            setTimeout(() => {
-              setAnalysisResult(null);
-              setCapturedPhotoUri(null);
-            }, 500);
-          } else {
-            setAnalysisResult({ ...analysisData.analysis });
-            setIsProcessingCapture(false);
-            setIsAnalyzing(false);
-          }
+          setAnalysisResult({ ...analysisData.analysis });
+          setIsProcessingCapture(false);
+          setIsAnalyzing(false);
 
           return currentUri;
         });
@@ -295,44 +308,44 @@ export default function FreeTrialScreen({ navigation }) {
     showPaywall();
   }, []);
 
+  // Reset to the camera view
+  const handleRefresh = useCallback(() => {
+    if (analysisAbortControllerRef.current) {
+      analysisAbortControllerRef.current.abort();
+      analysisAbortControllerRef.current = null;
+    }
+    if (recommendationsAbortControllerRef.current) {
+      recommendationsAbortControllerRef.current.abort();
+      recommendationsAbortControllerRef.current = null;
+    }
+
+    bottomSheetRef.current?.close();
+
+    setTimeout(() => {
+      setCapturedPhotoUri(null);
+      setCapturedPhotoBase64(null);
+      setAnalysisResult(null);
+      setIsCapturing(false);
+      setIsProcessingCapture(false);
+      setIsAnalyzing(false);
+      setHasGeneratedRecommendations(false);
+      setIsGeneratingRecommendations(false);
+      setIsDescriptionExpanded(false);
+      setTorchEnabled(false);
+    }, 250);
+  }, []);
+
   // Save onboarding profile to Supabase after sign-in
   const saveOnboardingProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      let birthDate = null;
-      if (onboardingData.birth) {
-        const year = onboardingData.birth.getFullYear();
-        const month = String(onboardingData.birth.getMonth() + 1).padStart(2, '0');
-        const day = String(onboardingData.birth.getDate()).padStart(2, '0');
-        birthDate = `${year}-${month}-${day}`;
-      }
-
-      const profileData = {
-        birth: birthDate,
-        gender: onboardingData.gender || null,
-        location: onboardingData.location || null,
-        height: onboardingData.height ? parseInt(onboardingData.height) : null,
-        weight: onboardingData.weight ? parseInt(onboardingData.weight) : null,
-        currency: onboardingData.currency || null,
-        price_min: onboardingData.priceMin ? parseInt(onboardingData.priceMin) : null,
-        price_max: onboardingData.priceMax ? parseInt(onboardingData.priceMax) : null,
-        shirt_size: onboardingData.shirtSize || null,
-        pants_size: onboardingData.pantsSize || null,
-        shoe_size: onboardingData.shoeSize || null,
-        favorite_brands: onboardingData.favoriteBrands || [],
-        favorite_styles: onboardingData.favoriteStyles || [],
-        response_1: onboardingData.questionnaire1 || null,
-        response_2: onboardingData.questionnaire2 || null,
-        response_3: onboardingData.questionnaire3 || null,
-      };
-
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
-          ...profileData
+          ...userProfile
         });
 
       if (error) throw error;
@@ -365,12 +378,6 @@ export default function FreeTrialScreen({ navigation }) {
     try {
       console.log('Generating recommendations on demand...');
 
-      const userProfile = {
-        gender: onboardingData.gender,
-        favorite_styles: onboardingData.favoriteStyles || [],
-        favorite_brands: onboardingData.favoriteBrands || [],
-      };
-
       let accumulatedProducts = [];
 
       for (let run = 0; run < 3; run++) {
@@ -380,8 +387,9 @@ export default function FreeTrialScreen({ navigation }) {
 
         const { data, error } = await supabase.functions.invoke('search-products-2', {
           body: {
+            userProfile: userProfile,
             base64Image: capturedPhotoBase64,
-            userProfile: userProfile
+            outfitName: analysisResult?.outfitName || ''
           }
         });
 
@@ -737,13 +745,6 @@ export default function FreeTrialScreen({ navigation }) {
       try {
         console.log('Starting outfit analysis...');
 
-        // Build user profile from onboarding data for personalization
-        const userProfile = {
-          gender: onboardingData.gender,
-          favorite_styles: onboardingData.favoriteStyles || [],
-          favorite_brands: onboardingData.favoriteBrands || [],
-        };
-
         // Call Supabase edge function for outfit analysis
         const { data, error } = await supabase.functions.invoke('analyze-outfit', {
           body: {
@@ -777,25 +778,9 @@ export default function FreeTrialScreen({ navigation }) {
             return currentUri;
           }
 
-          // Photo still exists, proceed with showing results
-          // Check if the photo is valid
-          if (result.isValidPhoto === false) {
-            // Invalid photo detected
-            setIsAnalyzing(false);
-            setIsProcessingCapture(false);
-            bottomSheetRef.current?.close();
-            // Reset camera state and clear captured photo
-            setTimeout(() => {
-              setAnalysisResult(null);
-              setCapturedPhotoUri(null);
-            }, 500);
-          } else {
-            // Show results immediately (don't save to DB yet - user not authenticated)
-            setAnalysisResult({ ...result.analysis });
-            setIsProcessingCapture(false);
-            setIsAnalyzing(false);
-
-          }
+          setAnalysisResult({ ...result.analysis });
+          setIsProcessingCapture(false);
+          setIsAnalyzing(false);
 
           return currentUri;
         });
@@ -947,7 +932,6 @@ export default function FreeTrialScreen({ navigation }) {
     };
   });
 
-  const placeholderPaddingBottom = analysisResult?.isValidPhoto ? 15 : insets.bottom + 12;
   const buttonText = isAuthenticated ? 'Generate Recommendations' : 'Sign in with Apple';
 
   return (
@@ -1145,13 +1129,26 @@ export default function FreeTrialScreen({ navigation }) {
                   ) : (
                     /* Show placeholder when no recommendations generated yet */
                     !hasGeneratedRecommendations && (
-                      <View style={[styles.placeholderContainer, { paddingBottom: placeholderPaddingBottom }]}>
+                      <View style={[styles.placeholderContainer, { paddingBottom: 15 }]}>
                         <Ionicons name="shirt-outline" size={48} color="#ccc" />
                         <Text style={styles.placeholderText}>Sign up to generate items!</Text>
                       </View>
                     )
                   )}
                 </View>
+
+                {analysisResult.isValidPhoto === false && (
+                  <View style={{ paddingBottom: insets.bottom + 12 }}>
+                    <TouchableOpacity
+                      style={styles.generateButton}
+                      onPress={handleRefresh}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="refresh" size={20} color="#fff" style={styles.buttonIcon} />
+                      <Text style={styles.generateButtonText}>Retake Photo</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Generate Recommendations Button - At the very bottom */}
                 {!hasGeneratedRecommendations && analysisResult.isValidPhoto && (

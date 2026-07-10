@@ -26,6 +26,11 @@ export default function FavoriteBrandsScreen({ navigation }) {
   const [brandsText, setBrandsText] = useState((data.favoriteBrands || []).join(', '));
   const selectedBrands = parseFavoriteText(brandsText);
 
+  const updateBrandsText = (text) => {
+    updateData({ favoriteBrands: parseFavoriteText(text) });
+    setBrandsText(text);
+  };
+
   const handleContinue = () => {
     Keyboard.dismiss(); // Dismiss keyboard
     updateData({ favoriteBrands: selectedBrands });
@@ -38,9 +43,9 @@ export default function FavoriteBrandsScreen({ navigation }) {
 
   const toggleBrand = (brand) => {
     if (selectedBrands.includes(brand)) {
-      setBrandsText(selectedBrands.filter(b => b !== brand).join(', '));
+      updateBrandsText(selectedBrands.filter(b => b !== brand).join(', '));
     } else {
-      setBrandsText([...selectedBrands, brand].join(', '));
+      updateBrandsText([...selectedBrands, brand].join(', '));
     }
   };
 
@@ -87,9 +92,9 @@ export default function FavoriteBrandsScreen({ navigation }) {
                 filtered = filtered.replace(/,+/g, ',');
                 filtered = filtered.replace(/\s+,/g, ',');
                 filtered = filtered.replace(/,(?!\s)/g, ', ');
-                setBrandsText(filtered);
+                updateBrandsText(filtered);
               }}
-              onBlur={() => setBrandsText(brandsText.replace(/[,\s]+$/, ''))}
+              onBlur={() => updateBrandsText(brandsText.replace(/[,\s]+$/, ''))}
               multiline
               numberOfLines={3}
               autoCapitalize="words"

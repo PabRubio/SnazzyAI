@@ -15,7 +15,12 @@ const EMOJIS = ['😫', '😢', '😞', '😕', '😐', '🙂', '😊', '😄', 
 export default function Questionnaire1Screen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { data, updateData } = useOnboarding();
-  const [sliderValue, setSliderValue] = useState(data.questionnaire1 || 5);
+  const [sliderValue, setSliderValue] = useState(data.questionnaire1 ?? 5);
+
+  const handleSliderChange = (value) => {
+    updateData({ questionnaire1: Math.round(value) });
+    setSliderValue(value);
+  };
 
   const handleContinue = () => {
     updateData({ questionnaire1: Math.round(sliderValue) });
@@ -57,15 +62,15 @@ export default function Questionnaire1Screen({ navigation }) {
 
           <View style={styles.sliderContainer}>
             <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={10}
-              step={1}
-              value={sliderValue}
-              onValueChange={setSliderValue}
+              onValueChange={handleSliderChange}
               minimumTrackTintColor="#007AFF"
               maximumTrackTintColor="#E0E0E0"
               thumbTintColor="#007AFF"
+              style={styles.slider}
+              value={sliderValue}
+              maximumValue={10}
+              minimumValue={0}
+              step={1}
             />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabelText}>0</Text>

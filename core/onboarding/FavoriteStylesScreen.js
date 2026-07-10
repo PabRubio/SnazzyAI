@@ -26,6 +26,11 @@ export default function FavoriteStylesScreen({ navigation }) {
   const [stylesText, setStylesText] = useState((data.favoriteStyles || []).join(', '));
   const selectedStyles = parseFavoriteText(stylesText);
 
+  const updateStylesText = (text) => {
+    updateData({ favoriteStyles: parseFavoriteText(text) });
+    setStylesText(text);
+  };
+
   const handleContinue = () => {
     Keyboard.dismiss(); // Dismiss keyboard
     updateData({ favoriteStyles: selectedStyles });
@@ -38,9 +43,9 @@ export default function FavoriteStylesScreen({ navigation }) {
 
   const toggleStyle = (style) => {
     if (selectedStyles.includes(style)) {
-      setStylesText(selectedStyles.filter(s => s !== style).join(', '));
+      updateStylesText(selectedStyles.filter(s => s !== style).join(', '));
     } else {
-      setStylesText([...selectedStyles, style].join(', '));
+      updateStylesText([...selectedStyles, style].join(', '));
     }
   };
 
@@ -87,9 +92,9 @@ export default function FavoriteStylesScreen({ navigation }) {
                 filtered = filtered.replace(/,+/g, ',');
                 filtered = filtered.replace(/\s+,/g, ',');
                 filtered = filtered.replace(/,(?!\s)/g, ', ');
-                setStylesText(filtered);
+                updateStylesText(filtered);
               }}
-              onBlur={() => setStylesText(stylesText.replace(/[,\s]+$/, ''))}
+              onBlur={() => updateStylesText(stylesText.replace(/[,\s]+$/, ''))}
               multiline
               numberOfLines={3}
               autoCapitalize="words"

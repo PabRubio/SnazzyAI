@@ -1510,7 +1510,7 @@ export default function HomeScreen({ navigation }) {
                 )}
               </TouchableOpacity>
 
-              <Text style={styles.versionFooter}>Version 1.0.1</Text>
+              <Text style={styles.versionFooter}>Version 1.0.2</Text>
             </View>
           </View>
         )}
