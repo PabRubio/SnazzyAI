@@ -1,5 +1,5 @@
 import React from 'react';
-import Text from '../components/Text';
+import Text from '../components/typography/Text';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';

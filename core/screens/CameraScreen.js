@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import Text from '../components/Text';
+import Text from '../components/typography/Text';
 import { CameraView } from 'expo-camera';
 import { StatusBar } from 'expo-status-bar';
-import TextInput from '../components/TextInput';
 import { StatusBar as RNStatusBar } from 'react-native';
+import TextInput from '../components/typography/TextInput';
 import { StyleSheet, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';

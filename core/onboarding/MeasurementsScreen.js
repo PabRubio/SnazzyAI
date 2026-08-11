@@ -1,6 +1,6 @@
 import React from 'react';
-import Text from '../components/Text';
-import TextInput from '../components/TextInput';
+import Text from '../components/typography/Text';
+import TextInput from '../components/typography/TextInput';
 import { StyleSheet, View, TouchableOpacity, Keyboard, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
