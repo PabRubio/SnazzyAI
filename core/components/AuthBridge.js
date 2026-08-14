@@ -1,0 +1,59 @@
+import { useEffect, useRef } from 'react';
+import { useSuperwall, useUser } from 'expo-superwall';
+import { supabase } from '../../supabase/services/supabase';
+
+export default function SuperwallIdentity() {
+  const { identify, update, signOut } = useUser();
+  const isConfigured = useSuperwall((state) => state.isConfigured);
+  const superwallRef = useRef({ identify, update, signOut });
+
+  superwallRef.current = { identify, update, signOut };
+
+  useEffect(() => {
+    if (!isConfigured) return;
+
+    const syncUser = async (user) => {
+      if (!user) {
+        await superwallRef.current.signOut();
+        return;
+      }
+
+      await superwallRef.current.identify(user.id);
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!profile) return;
+
+      await superwallRef.current.update({
+        name: profile.name,
+        email: profile.email,
+      });
+    };
+
+    supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        if (error) throw error;
+        return syncUser(session?.user);
+      })
+      .catch((error) => console.error('Failed to sync Superwall user:', error));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        void superwallRef.current.signOut()
+          .catch((error) => console.error('Failed to sign out of Superwall:', error));
+      } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        void syncUser(session?.user)
+          .catch((error) => console.error('Failed to sync Superwall user:', error));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [isConfigured]);
+
+  return null;
+}

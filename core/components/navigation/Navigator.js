@@ -5,10 +5,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationProvider, useNavigation } from './NavigationContext';
+
 import Onboarding from '../../screens/Onboarding';
 import AuthScreen from '../../screens/AuthScreen';
 import HomeScreen from '../../screens/HomeScreen';
 import CameraScreen from '../../screens/CameraScreen';
+import SuperwallIdentity from '../AuthBridge';
 
 const Stack = createStackNavigator();
 
@@ -34,6 +36,7 @@ function AppNavigatorContent() {
         android: superwallApiKey
       }}
     >
+      <SuperwallIdentity />
       <NavigationContainer>
         <Stack.Navigator
           initialRouteName={showAppStack ? "Home" : "Auth"}

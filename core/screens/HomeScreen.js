@@ -1,6 +1,6 @@
+import Text from '../components/typography/Text';
+import TextInput from '../components/typography/TextInput';
 import React, { useState, useRef, useEffect } from 'react';
-import Text from '../components/Text';
-import TextInput from '../components/TextInput';
 import { StyleSheet, View, TouchableOpacity, Dimensions, Image, ScrollView, Alert, Keyboard, Switch, Linking, ActivityIndicator, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCameraPermissions } from 'expo-camera';
@@ -36,20 +36,20 @@ const kgToLb = (kg) => {
 };
 
 export default function HomeScreen({ navigation }) {
-  const [activeTab, setActiveTab] = useState('home');
   const shirtsScrollRef = useRef(null);
   const pantsScrollRef = useRef(null);
   const shoesScrollRef = useRef(null);
   const otherScrollRef = useRef(null);
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
-  const { subscriptionStatus } = useUser();
   const deletingAccountRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [favorites, setFavorites] = useState([]);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [favoriteItems, setFavoriteItems] = useState(new Map()); // Map: itemId -> database UUID
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [activeTab, setActiveTab] = useState('home');
+  const { subscriptionStatus, update } = useUser();
   const { switchToAuthStack } = useNavigation();
   const { registerPlacement } = usePlacement({
     onDismiss: (info, result) => {
@@ -572,6 +572,7 @@ export default function HomeScreen({ navigation }) {
     try {
       deletingAccountRef.current = true;
       setDeletingAccount(true);
+      await update({ name: null, email: null });
       await deleteAccount();
       await supabase.auth.signOut({ scope: 'local' });
 
