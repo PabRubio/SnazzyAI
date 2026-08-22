@@ -13,7 +13,7 @@ import { usePlacement, useUser } from 'expo-superwall';
 import { supabase } from '../../supabase/services/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '../components/navigation/NavigationContext';
-import { getProfile, updateProfile, addFavorite, removeFavorite, deleteAccount } from '../../supabase/services/supabaseHelpers';
+import { getProfile, updateProfile, addFavorite, removeFavorite, getOutfitHistory, deleteAccount } from '../../supabase/services/supabaseHelpers';
 
 const { width, height } = Dimensions.get('window');
 
@@ -43,10 +43,14 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
   const deletingAccountRef = useRef(false);
+  const outfitPhotoHeadersRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [favorites, setFavorites] = useState([]);
+  const [outfitHistory, setOutfitHistory] = useState([]);
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [favoriteItems, setFavoriteItems] = useState(new Map()); // Map: itemId -> database UUID
+  const [favoriteItems, setFavoriteItems] = useState(new Map());
+  const [lookbookStatus, setLookbookStatus] = useState('loading');
+  const [favoritesStatus, setFavoritesStatus] = useState('loading');
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [activeTab, setActiveTab] = useState('home');
   const { subscriptionStatus, update } = useUser();
@@ -94,6 +98,7 @@ export default function HomeScreen({ navigation }) {
 
   // Load profile from Supabase on mount
   useEffect(() => {
+    loadOutfitHistory();
     loadProfileData();
     loadFavorites();
   }, []);
@@ -153,11 +158,13 @@ export default function HomeScreen({ navigation }) {
   };
 
   const loadFavorites = async () => {
+    setFavoritesStatus('loading');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = (await supabase.auth.getSession()).data.session?.user;
 
       if (!user) {
         setFavorites([]);
+        setFavoritesStatus('ready');
         return;
       }
 
@@ -179,10 +186,47 @@ export default function HomeScreen({ navigation }) {
         favMap.set(item.id, item.id); // Store database ID as value
       });
       setFavoriteItems(favMap);
-    } catch (error) {
-      console.error('Error loading favorites:', error);
-      // Don't show alert for favorites - just log the error
+      setFavoritesStatus('ready');
+    } catch {
+      setFavoritesStatus('error');
     }
+  };
+
+  const loadOutfitHistory = async () => {
+    setLookbookStatus('loading');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      outfitPhotoHeadersRef.current = { Authorization: `Bearer ${session.access_token}` };
+      setOutfitHistory(await getOutfitHistory());
+      setLookbookStatus('ready');
+    } catch {
+      setLookbookStatus('error');
+    }
+  };
+
+  const handleLongPressAnalysis = (analysis) => {
+    Alert.alert(
+      'Delete analysis?',
+      `"${analysis.outfit_name}" will be deleted from your Lookbook...`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('outfit_analyses').delete().eq('id', analysis.id);
+
+              if (error) throw error;
+              setOutfitHistory(history => history.filter(item => item.id !== analysis.id));
+            } catch {
+              Alert.alert('Error', 'Failed to delete analysis. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Predefined options
@@ -599,14 +643,18 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleTabPress = async (tabName) => {
+    // If switching to home tab, reload favorites
+    if (tabName === 'home' && activeTab !== 'home') {
+      loadFavorites();
+    }
+
     // If leaving settings tab, reset unsaved changes
     if (activeTab === 'settings' && tabName !== 'settings') {
       resetSettings();
     }
 
-    // If switching to home tab, reload favorites
-    if (tabName === 'home' && activeTab !== 'home') {
-      loadFavorites();
+    if (tabName === 'lookbook' && activeTab !== 'lookbook') {
+      loadOutfitHistory();
     }
 
     if (tabName === 'add') {
@@ -720,17 +768,15 @@ export default function HomeScreen({ navigation }) {
       pantsScrollRef.current?.scrollTo({ x: 0, animated: false });
       shoesScrollRef.current?.scrollTo({ x: 0, animated: false });
       otherScrollRef.current?.scrollTo({ x: 0, animated: false });
-
-      // Reset settings when leaving settings tab
-      if (activeTab === 'settings') {
-        resetSettings();
-      }
     });
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
       // Reload favorites when returning to HomeScreen (e.g., from Camera)
       if (activeTab === 'home') {
         loadFavorites();
+      }
+      if (activeTab === 'lookbook') {
+        loadOutfitHistory();
       }
     });
 
@@ -760,11 +806,26 @@ export default function HomeScreen({ navigation }) {
             </View>
 
             {/* Sections Container */}
-            <View style={styles.sectionsContainer}>
-              {favorites.length === 0 ? (
+            <View
+              style={[
+                styles.sectionsContainer,
+                (favoritesStatus !== 'ready' || favorites.length === 0) &&
+                  { marginTop: -35 },
+              ]}
+            >
+              {favoritesStatus === 'loading' ? (
+                <View style={styles.emptyContainer}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                </View>
+              ) : favorites.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Ionicons name="heart-outline" size={48} color="#ccc" />
                   <Text style={styles.emptyText}>No favorites yet :(</Text>
+                </View>
+              ) : favoritesStatus === 'error' ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="alert-circle-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyText}>Couldn't load favorites</Text>
                 </View>
               ) : (
                 <>
@@ -986,6 +1047,60 @@ export default function HomeScreen({ navigation }) {
                 </>
               )}
             </View>
+          </View>
+        )}
+        {activeTab === 'lookbook' && (
+          <View style={styles.settingsContainer}>
+            <View style={[styles.settingsHeader, styles.lookbookHeader]}>
+              <Text style={styles.settingsTitle}>Lookbook</Text>
+            </View>
+
+            {lookbookStatus === 'loading' ? (
+              <View style={styles.emptyContainer}>
+                <ActivityIndicator size="small" color="#007AFF" />
+              </View>
+            ) : outfitHistory.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="book-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No saved looks yet</Text>
+              </View>
+            ) : lookbookStatus === 'error' ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="alert-circle-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>Couldn't load lookbook</Text>
+              </View>
+            ) : (
+              outfitHistory.map((analysis) => (
+                <TouchableOpacity
+                  style={[styles.recommendationCard, styles.lookbookCard]}
+                  onLongPress={() => handleLongPressAnalysis(analysis)}
+                  activeOpacity={0.8} key={analysis.id}
+                >
+                  <View style={styles.lookbookImageContainer}>
+                    <Image
+                      source={{
+                        uri: analysis.photo_url?.replace('/object/public/', '/object/'),
+                        headers: outfitPhotoHeadersRef.current,
+                      }}
+                      style={styles.lookbookImage}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.lookbookTitle}>{analysis.outfit_name}</Text>
+                  </View>
+                  <View style={styles.lookbookContent}>
+                    <View style={styles.lookbookMeta}>
+                      <Text style={styles.lookbookDate}>
+                        {new Date(analysis.analyzed_at).toLocaleDateString()}
+                      </Text>
+                      <Text style={styles.recommendationBrand}>
+                        {analysis.rating == null ? 'Not rated' : `⭐ ${analysis.rating}/10`}
+                      </Text>
+                    </View>
+                    <Text style={styles.recommendationDescription}>{analysis.short_description}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         )}
         {activeTab === 'settings' && (
@@ -1521,21 +1636,26 @@ export default function HomeScreen({ navigation }) {
       <View style={[styles.navigationBar, { paddingBottom: insets.bottom }]}>
         {/* Home Icon - Left */}
         <TouchableOpacity
-          style={[styles.navButton, styles.navButtonSide]}
           onPress={() => handleTabPress('home')}
+          style={styles.navItem}
           activeOpacity={0.7}
         >
           <Ionicons
-            name="home-sharp"
-            size={28}
             color={activeTab === 'home' ? '#007AFF' : '#999'}
+            name="home"
+            size={28}
           />
         </TouchableOpacity>
 
+        {/* Search Placeholder */}
+        <View style={styles.navItem}>
+          <Ionicons name="search" size={28} color="#999" />
+        </View>
+
         {/* Plus Icon - Center */}
         <TouchableOpacity
-          style={styles.navButtonCenter}
           onPress={() => handleTabPress('add')}
+          style={styles.navItem}
           activeOpacity={0.7}
         >
           <Image
@@ -1545,16 +1665,29 @@ export default function HomeScreen({ navigation }) {
           />
         </TouchableOpacity>
 
-        {/* Settings Icon - Right */}
+        {/* Lookbook Icon */}
         <TouchableOpacity
-          style={[styles.navButton, styles.navButtonSide]}
-          onPress={() => handleTabPress('settings')}
+          onPress={() => handleTabPress('lookbook')}
+          style={styles.navItem}
           activeOpacity={0.7}
         >
           <Ionicons
-            name="settings-sharp"
+            color={activeTab === 'lookbook' ? '#007AFF' : '#999'}
+            name="albums"
             size={28}
+          />
+        </TouchableOpacity>
+
+        {/* Settings Icon - Right */}
+        <TouchableOpacity
+          onPress={() => handleTabPress('settings')}
+          style={styles.navItem}
+          activeOpacity={0.7}
+        >
+          <Ionicons
             color={activeTab === 'settings' ? '#007AFF' : '#999'}
+            name="settings"
+            size={28}
           />
         </TouchableOpacity>
       </View>
@@ -1694,8 +1827,7 @@ const styles = StyleSheet.create({
   navigationBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 30,
+    paddingHorizontal: 8,
     paddingTop: 12,
     paddingBottom: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
@@ -1707,18 +1839,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 0,
   },
-  navButton: {
+  navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 50,
-    height: 50,
-  },
-  navButtonSide: {
-    borderRadius: 25,
-  },
-  navButtonCenter: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 56,
+    flex: 1,
   },
   plusIconContainer: {
     width: 56,
@@ -1732,6 +1857,54 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  lookbookCard: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    alignSelf: 'center',
+    width: '90%',
+    marginBottom: 12,
+    padding: 0,
+    overflow: 'hidden',
+  },
+  lookbookHeader: {
+    justifyContent: 'center',
+  },
+  lookbookImageContainer: {
+    aspectRatio: 4 / 5,
+    width: '100%',
+  },
+  lookbookImage: {
+    backgroundColor: '#f5f5f5',
+    width: '100%',
+    height: '100%',
+  },
+  lookbookTitle: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  lookbookContent: {
+    padding: 12,
+  },
+  lookbookMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  lookbookDate: {
+    color: '#999',
+    fontSize: 13,
   },
   // Settings styles
   settingsContainer: {
