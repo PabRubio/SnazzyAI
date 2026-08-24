@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, ActivityIndicator, Alert } from 'react-native';
-import { usePlacement } from 'expo-superwall';
+import { usePlacement } from "expo-superwall";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 
 export default function PaywallScreen({ navigation }) {
   const [paywallShown, setPaywallShown] = useState(false);
@@ -8,24 +8,24 @@ export default function PaywallScreen({ navigation }) {
   const { registerPlacement } = usePlacement({
     onDismiss: () => {
       // Go back to Auth when paywall is dismissed
-      navigation.navigate('Auth');
+      navigation.navigate("Auth");
     },
     onError: (error) => {
-      console.error('Paywall error:', error);
-      Alert.alert('Error', 'Failed to show paywall. Please try again.');
-      navigation.navigate('Auth');
-    }
+      console.error("Paywall error:", error);
+      Alert.alert("Error", "Failed to show paywall. Please try again.");
+      navigation.navigate("Auth");
+    },
   });
 
   const handleShowPaywall = async () => {
     try {
       await registerPlacement({
-        placement: 'campaign_trigger'
+        placement: "campaign_trigger",
       });
     } catch (error) {
-      console.error('Failed to show paywall:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
-      navigation.navigate('Auth');
+      console.error("Failed to show paywall:", error);
+      Alert.alert("Error", "Something went wrong. Please try again.");
+      navigation.navigate("Auth");
     }
   };
 
@@ -38,16 +38,16 @@ export default function PaywallScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#007AFF" />
+      <ActivityIndicator color="#007AFF" size="large" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: "center",
+    backgroundColor: "#fff",
     flex: 1,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
   },
 });

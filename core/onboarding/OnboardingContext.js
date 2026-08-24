@@ -1,24 +1,24 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState } from "react";
 
 const OnboardingContext = createContext();
 
 const INITIAL_STATE = {
   birth: null,
-  gender: null,
-  height: '',
-  weight: '',
-  location: '',
-  currency: 'USD',
-  priceMin: '',
-  priceMax: '',
-  shirtSize: null,
-  pantsSize: null,
-  shoeSize: null,
-  favoriteStyles: [],
+  currency: "USD",
   favoriteBrands: [],
+  favoriteStyles: [],
+  gender: null,
+  height: "",
+  location: "",
+  pantsSize: null,
+  priceMax: "",
+  priceMin: "",
   questionnaire1: null,
   questionnaire2: null,
   questionnaire3: null,
+  shirtSize: null,
+  shoeSize: null,
+  weight: "",
 };
 
 export function OnboardingProvider({ children }) {
@@ -33,7 +33,7 @@ export function OnboardingProvider({ children }) {
   };
 
   return (
-    <OnboardingContext.Provider value={{ data, updateData, resetData }}>
+    <OnboardingContext.Provider value={{ data, resetData, updateData }}>
       {children}
     </OnboardingContext.Provider>
   );
@@ -42,7 +42,7 @@ export function OnboardingProvider({ children }) {
 export function useOnboarding() {
   const context = useContext(OnboardingContext);
   if (!context) {
-    throw new Error('useOnboarding must be used within an OnboardingProvider');
+    throw new Error("useOnboarding must be used within an OnboardingProvider");
   }
   return context;
 }

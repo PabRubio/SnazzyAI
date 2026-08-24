@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
-import Text from '../components/typography/Text';
-import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { useOnboarding } from './OnboardingContext';
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { StatusBar } from "expo-status-bar";
+import React, { useState } from "react";
+import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import Text from "../components/typography/Text";
+import { useOnboarding } from "./OnboardingContext";
 
 const TOTAL_STEPS = 15;
 const CURRENT_STEP = 3;
 
 export default function BirthScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
-  const [showPicker, setShowPicker] = useState(Platform.OS === 'ios');
+  const [showPicker, setShowPicker] = useState(Platform.OS === "ios");
   const insets = useSafeAreaInsets();
 
   // Set max date to 13 years ago (minimum age)
@@ -24,7 +25,7 @@ export default function BirthScreen({ navigation }) {
   minDate.setFullYear(minDate.getFullYear() - 100);
 
   const handleContinue = () => {
-    navigation.navigate('OnboardingGender');
+    navigation.navigate("OnboardingGender");
   };
 
   const handleBack = () => {
@@ -32,7 +33,7 @@ export default function BirthScreen({ navigation }) {
   };
 
   const handleDateChange = (event, selectedDate) => {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === "android") {
       setShowPicker(false);
     }
     if (selectedDate) {
@@ -41,9 +42,21 @@ export default function BirthScreen({ navigation }) {
   };
 
   const formatDate = (date) => {
-    if (!date) return '';
-    const months = ['January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'];
+    if (!date) return "";
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
     return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
@@ -52,67 +65,77 @@ export default function BirthScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {/* Header with back arrow and progress bar */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={28} color="#3a3b3c" />
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={handleBack}
+          style={styles.backButton}
+        >
+          <Ionicons color="#3a3b3c" name="chevron-back" size={28} />
+        </TouchableOpacity>
 
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-            </View>
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarTrack}>
+            <View
+              style={[styles.progressBarFill, { width: `${progress * 100}%` }]}
+            />
           </View>
         </View>
+      </View>
 
-        {/* Main content */}
-        <View style={styles.content}>
-          <Text style={styles.title}>When is your DoB?</Text>
+      {/* Main content */}
+      <View style={styles.content}>
+        <Text style={styles.title}>When is your DoB?</Text>
 
-          {/* Date display / picker trigger for Android */}
-          {Platform.OS === 'android' && (
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowPicker(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.dateButtonText, !data.birth && styles.dateButtonPlaceholder]}>
-                {data.birth ? formatDate(data.birth) : 'Select your birthday'}
-              </Text>
-              <Ionicons name="calendar-outline" size={24} color="#007AFF" />
-            </TouchableOpacity>
-          )}
-
-          {/* Date Picker */}
-          {showPicker && (
-            <View style={styles.pickerContainer}>
-              <DateTimePicker
-                value={data.birth || maxDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleDateChange}
-                maximumDate={maxDate}
-                minimumDate={minDate}
-                style={styles.picker}
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Bottom bar with Continue button */}
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        {/* Date display / picker trigger for Android */}
+        {Platform.OS === "android" && (
           <TouchableOpacity
-            style={[styles.continueButton, !data.birth && styles.continueButtonDisabled]}
-            onPress={handleContinue}
             activeOpacity={0.7}
-            disabled={!data.birth}
+            onPress={() => setShowPicker(true)}
+            style={styles.dateButton}
           >
-            <Text style={styles.continueButtonText}>Continue</Text>
+            <Text
+              style={[
+                styles.dateButtonText,
+                !data.birth && styles.dateButtonPlaceholder,
+              ]}
+            >
+              {data.birth ? formatDate(data.birth) : "Select your birthday"}
+            </Text>
+            <Ionicons color="#007AFF" name="calendar-outline" size={24} />
           </TouchableOpacity>
-        </View>
+        )}
+
+        {/* Date Picker */}
+        {showPicker && (
+          <View style={styles.pickerContainer}>
+            <DateTimePicker
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              maximumDate={maxDate}
+              minimumDate={minDate}
+              mode="date"
+              onChange={handleDateChange}
+              style={styles.picker}
+              value={data.birth || maxDate}
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Bottom bar with Continue button */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          disabled={!data.birth}
+          onPress={handleContinue}
+          style={[
+            styles.continueButton,
+            !data.birth && styles.continueButtonDisabled,
+          ]}
+        >
+          <Text style={styles.continueButtonText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
 
       <StatusBar style="dark" />
     </View>
@@ -120,107 +143,107 @@ export default function BirthScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
   backButton: {
-    width: 44,
-    height: 44,
+    alignItems: "center",
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 44,
+    justifyContent: "center",
     marginRight: 16,
+    width: 44,
   },
-  progressBarContainer: {
+  bottomBar: {
+    backgroundColor: "#fff",
+    borderTopColor: "#f0f0f0",
+    borderTopWidth: 1,
+    elevation: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { height: -2, width: 0 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  container: {
+    backgroundColor: "#fff",
     flex: 1,
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 4,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 30,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#3a3b3c',
-    letterSpacing: 0.5,
-    marginBottom: 24,
+  continueButton: {
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    elevation: 3,
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#999",
+    opacity: 0.5,
+  },
+  continueButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
   },
   dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderColor: "#f0f0f0",
     borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
     padding: 16,
-    backgroundColor: '#f5f5f5',
-  },
-  dateButtonText: {
-    fontSize: 16,
-    color: '#3a3b3c',
   },
   dateButtonPlaceholder: {
-    color: '#999',
+    color: "#999",
   },
-  pickerContainer: {
-    marginTop: 16,
+  dateButtonText: {
+    color: "#3a3b3c",
+    fontSize: 16,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingTop: 60,
   },
   picker: {
     height: 200,
   },
-  bottomBar: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 8,
+  pickerContainer: {
+    marginTop: 16,
   },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  progressBarContainer: {
+    flex: 1,
+    justifyContent: "center",
   },
-  continueButtonDisabled: {
-    backgroundColor: '#999',
-    opacity: 0.5,
+  progressBarFill: {
+    backgroundColor: "#007AFF",
+    borderRadius: 2,
+    height: "100%",
   },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+  progressBarTrack: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 2,
+    height: 4,
+    overflow: "hidden",
+  },
+  title: {
+    color: "#3a3b3c",
+    fontSize: 32,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+    marginBottom: 24,
   },
 });

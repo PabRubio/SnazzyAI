@@ -1,11 +1,18 @@
-import React from 'react';
-import Text from '../components/typography/Text';
-import TextInput from '../components/typography/TextInput';
-import { StyleSheet, View, TouchableOpacity, Keyboard, Alert } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useOnboarding } from './OnboardingContext';
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import React from "react";
+import {
+  Alert,
+  Keyboard,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import Text from "../components/typography/Text";
+import TextInput from "../components/typography/TextInput";
+import { useOnboarding } from "./OnboardingContext";
 
 const TOTAL_STEPS = 15;
 const CURRENT_STEP = 6;
@@ -40,23 +47,23 @@ export default function MeasurementsScreen({ navigation }) {
 
     if (heightVal < 150 || heightVal > 250) {
       Alert.alert(
-        'Invalid Height',
-        'Please enter a height between 150 and 250 cm.',
-        [{ text: 'OK' }]
+        "Invalid Height",
+        "Please enter a height between 150 and 250 cm.",
+        [{ text: "OK" }],
       );
       return;
     }
 
     if (weightVal < 50 || weightVal > 200) {
       Alert.alert(
-        'Invalid Weight',
-        'Please enter a weight between 50 and 200 kg.',
-        [{ text: 'OK' }]
+        "Invalid Weight",
+        "Please enter a weight between 50 and 200 kg.",
+        [{ text: "OK" }],
       );
       return;
     }
 
-    navigation.navigate('OnboardingQuestionnaire2');
+    navigation.navigate("OnboardingQuestionnaire2");
   };
 
   const handleBack = () => {
@@ -69,77 +76,90 @@ export default function MeasurementsScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {/* Header with back arrow and progress bar */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={28} color="#3a3b3c" />
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={handleBack}
+          style={styles.backButton}
+        >
+          <Ionicons color="#3a3b3c" name="chevron-back" size={28} />
+        </TouchableOpacity>
 
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-            </View>
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarTrack}>
+            <View
+              style={[styles.progressBarFill, { width: `${progress * 100}%` }]}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Main content */}
+      <View style={styles.content}>
+        <Text style={styles.title}>Your measurements</Text>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Height (cm)</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              keyboardType="number-pad"
+              maxLength={3}
+              onChangeText={(text) =>
+                updateData({ height: text.replace(/[^0-9]/g, "") })
+              }
+              placeholder="Enter your height"
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              style={styles.input}
+              value={data.height}
+            />
+            {data.height && cmToFt(parseInt(data.height)) && (
+              <Text style={styles.conversionText}>
+                ≈ {cmToFt(parseInt(data.height))}
+              </Text>
+            )}
           </View>
         </View>
 
-        {/* Main content */}
-        <View style={styles.content}>
-          <Text style={styles.title}>Your measurements</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Height (cm)</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your height"
-                placeholderTextColor="#999"
-                value={data.height}
-                onChangeText={(text) => updateData({ height: text.replace(/[^0-9]/g, '') })}
-                keyboardType="number-pad"
-                returnKeyType="next"
-                maxLength={3}
-              />
-              {data.height && cmToFt(parseInt(data.height)) && (
-                <Text style={styles.conversionText}>≈ {cmToFt(parseInt(data.height))}</Text>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Weight (kg)</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your weight"
-                placeholderTextColor="#999"
-                value={data.weight}
-                onChangeText={(text) => updateData({ weight: text.replace(/[^0-9]/g, '') })}
-                onSubmitEditing={() => Keyboard.dismiss()}
-                keyboardType="number-pad"
-                returnKeyType="done"
-                maxLength={3}
-              />
-              {data.weight && kgToLb(parseInt(data.weight)) && (
-                <Text style={styles.conversionText}>≈ {kgToLb(parseInt(data.weight))}</Text>
-              )}
-            </View>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Weight (kg)</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              keyboardType="number-pad"
+              maxLength={3}
+              onChangeText={(text) =>
+                updateData({ weight: text.replace(/[^0-9]/g, "") })
+              }
+              onSubmitEditing={() => Keyboard.dismiss()}
+              placeholder="Enter your weight"
+              placeholderTextColor="#999"
+              returnKeyType="done"
+              style={styles.input}
+              value={data.weight}
+            />
+            {data.weight && kgToLb(parseInt(data.weight)) && (
+              <Text style={styles.conversionText}>
+                ≈ {kgToLb(parseInt(data.weight))}
+              </Text>
+            )}
           </View>
         </View>
+      </View>
 
-        {/* Bottom bar with Continue button */}
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-          <TouchableOpacity
-            style={[styles.continueButton, !isValid && styles.continueButtonDisabled]}
-            onPress={handleContinue}
-            activeOpacity={0.7}
-            disabled={!isValid}
-          >
-            <Text style={styles.continueButtonText}>Continue</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Bottom bar with Continue button */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          disabled={!isValid}
+          onPress={handleContinue}
+          style={[
+            styles.continueButton,
+            !isValid && styles.continueButtonDisabled,
+          ]}
+        >
+          <Text style={styles.continueButtonText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
 
       <StatusBar style="dark" />
     </View>
@@ -147,117 +167,117 @@ export default function MeasurementsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
   backButton: {
-    width: 44,
-    height: 44,
+    alignItems: "center",
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 44,
+    justifyContent: "center",
     marginRight: 16,
+    width: 44,
   },
-  progressBarContainer: {
+  bottomBar: {
+    backgroundColor: "#fff",
+    borderTopColor: "#f0f0f0",
+    borderTopWidth: 1,
+    elevation: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { height: -2, width: 0 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  container: {
+    backgroundColor: "#fff",
     flex: 1,
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 4,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 30,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#3a3b3c',
-    letterSpacing: 0.5,
-    marginBottom: 24,
+  continueButton: {
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    elevation: 3,
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#999",
+    opacity: 0.5,
+  },
+  continueButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  conversionText: {
+    bottom: 0,
+    color: "#999",
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 46,
+    position: "absolute",
+    right: 12,
+    textAlignVertical: "center",
+    top: 0,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+  },
+  input: {
+    backgroundColor: "#f5f5f5",
+    borderColor: "#f0f0f0",
+    borderRadius: 8,
+    borderWidth: 1,
+    color: "#3a3b3c",
+    fontSize: 16,
+    padding: 12,
+    paddingRight: 90,
   },
   inputGroup: {
     marginBottom: 16,
   },
+  inputWrapper: {
+    position: "relative",
+  },
   label: {
+    color: "#3a3b3c",
     fontSize: 14,
-    fontWeight: '500',
-    color: '#3a3b3c',
+    fontWeight: "500",
     marginBottom: 8,
   },
-  inputWrapper: {
-    position: 'relative',
+  progressBarContainer: {
+    flex: 1,
+    justifyContent: "center",
   },
-  input: {
-    fontSize: 16,
-    color: '#3a3b3c',
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    borderRadius: 8,
-    padding: 12,
-    paddingRight: 90,
-    backgroundColor: '#f5f5f5',
+  progressBarFill: {
+    backgroundColor: "#007AFF",
+    borderRadius: 2,
+    height: "100%",
   },
-  conversionText: {
-    position: 'absolute',
-    right: 12,
-    top: 0,
-    bottom: 0,
-    textAlignVertical: 'center',
-    lineHeight: 46,
-    fontSize: 14,
-    color: '#999',
-    fontWeight: '500',
+  progressBarTrack: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 2,
+    height: 4,
+    overflow: "hidden",
   },
-  bottomBar: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  continueButtonDisabled: {
-    backgroundColor: '#999',
-    opacity: 0.5,
-  },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+  title: {
+    color: "#3a3b3c",
+    fontSize: 32,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+    marginBottom: 24,
   },
 });

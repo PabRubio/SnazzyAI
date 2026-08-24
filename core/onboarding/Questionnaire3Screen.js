@@ -1,19 +1,20 @@
-import React from 'react';
-import Text from '../components/typography/Text';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useOnboarding } from './OnboardingContext';
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import React from "react";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import Text from "../components/typography/Text";
+import { useOnboarding } from "./OnboardingContext";
 
 const TOTAL_STEPS = 15;
 const CURRENT_STEP = 13;
 
 const SOURCE_OPTIONS = [
-  { label: 'TikTok', icon: 'logo-tiktok' },
-  { label: 'Internet', icon: 'logo-google' },
-  { label: 'Instagram', icon: 'logo-instagram' },
-  { label: 'Friends', icon: 'people' },
+  { icon: "logo-tiktok", label: "TikTok" },
+  { icon: "logo-google", label: "Internet" },
+  { icon: "logo-instagram", label: "Instagram" },
+  { icon: "people", label: "Friends" },
 ];
 
 export default function Questionnaire3Screen({ navigation }) {
@@ -22,7 +23,7 @@ export default function Questionnaire3Screen({ navigation }) {
 
   const handleContinue = () => {
     if (data.questionnaire3) {
-      navigation.navigate('OnboardingValueProp3');
+      navigation.navigate("OnboardingValueProp3");
     }
   };
 
@@ -35,67 +36,76 @@ export default function Questionnaire3Screen({ navigation }) {
   return (
     <View style={styles.container}>
       {/* Header with back arrow and progress bar */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={28} color="#3a3b3c" />
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={handleBack}
+          style={styles.backButton}
+        >
+          <Ionicons color="#3a3b3c" name="chevron-back" size={28} />
+        </TouchableOpacity>
 
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-            </View>
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarTrack}>
+            <View
+              style={[styles.progressBarFill, { width: `${progress * 100}%` }]}
+            />
           </View>
         </View>
+      </View>
 
-        {/* Main content */}
-        <View style={styles.content}>
-          <Text style={styles.title}>How did you hear about us?</Text>
+      {/* Main content */}
+      <View style={styles.content}>
+        <Text style={styles.title}>How did you hear about us?</Text>
 
-          <View style={styles.optionsContainer}>
-            {SOURCE_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.label}
+        <View style={styles.optionsContainer}>
+          {SOURCE_OPTIONS.map((option) => (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              key={option.label}
+              onPress={() => updateData({ questionnaire3: option.label })}
+              style={[
+                styles.optionChip,
+                data.questionnaire3 === option.label &&
+                  styles.optionChipSelected,
+              ]}
+            >
+              <Ionicons
+                color={
+                  data.questionnaire3 === option.label ? "#fff" : "#3a3b3c"
+                }
+                name={option.icon}
+                size={18}
+                style={styles.optionIcon}
+              />
+              <Text
                 style={[
-                  styles.optionChip,
-                  data.questionnaire3 === option.label && styles.optionChipSelected,
+                  styles.optionChipText,
+                  data.questionnaire3 === option.label &&
+                    styles.optionChipTextSelected,
                 ]}
-                onPress={() => updateData({ questionnaire3: option.label })}
-                activeOpacity={0.7}
               >
-                <Ionicons
-                  name={option.icon}
-                  size={18}
-                  color={data.questionnaire3 === option.label ? '#fff' : '#3a3b3c'}
-                  style={styles.optionIcon}
-                />
-                <Text
-                  style={[
-                    styles.optionChipText,
-                    data.questionnaire3 === option.label && styles.optionChipTextSelected,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+      </View>
 
-        {/* Bottom bar with Continue button */}
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-          <TouchableOpacity
-            style={[styles.continueButton, !data.questionnaire3 && styles.continueButtonDisabled]}
-            onPress={handleContinue}
-            activeOpacity={0.7}
-            disabled={!data.questionnaire3}
-          >
-            <Text style={styles.continueButtonText}>Continue</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Bottom bar with Continue button */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          disabled={!data.questionnaire3}
+          onPress={handleContinue}
+          style={[
+            styles.continueButton,
+            !data.questionnaire3 && styles.continueButtonDisabled,
+          ]}
+        >
+          <Text style={styles.continueButtonText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
 
       <StatusBar style="dark" />
     </View>
@@ -103,116 +113,116 @@ export default function Questionnaire3Screen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
   backButton: {
-    width: 44,
-    height: 44,
+    alignItems: "center",
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 44,
+    justifyContent: "center",
     marginRight: 16,
+    width: 44,
   },
-  progressBarContainer: {
+  bottomBar: {
+    backgroundColor: "#fff",
+    borderTopColor: "#f0f0f0",
+    borderTopWidth: 1,
+    elevation: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { height: -2, width: 0 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  container: {
+    backgroundColor: "#fff",
     flex: 1,
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 4,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 30,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#3a3b3c',
-    letterSpacing: 0.5,
-    marginBottom: 24,
+  continueButton: {
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    elevation: 3,
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  optionsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
+  continueButtonDisabled: {
+    backgroundColor: "#999",
+    opacity: 0.5,
+  },
+  continueButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingTop: 60,
   },
   optionChip: {
-    flexDirection: 'row',
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderColor: "#f0f0f0",
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "center",
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  optionChipSelected: {
+    backgroundColor: "#007AFF",
+    borderColor: "#007AFF",
+  },
+  optionChipText: {
+    color: "#3a3b3c",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  optionChipTextSelected: {
+    color: "#fff",
   },
   optionIcon: {
     marginRight: 6,
   },
-  optionChipSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+  optionsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
   },
-  optionChipText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#3a3b3c',
+  progressBarContainer: {
+    flex: 1,
+    justifyContent: "center",
   },
-  optionChipTextSelected: {
-    color: '#fff',
+  progressBarFill: {
+    backgroundColor: "#007AFF",
+    borderRadius: 2,
+    height: "100%",
   },
-  bottomBar: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 8,
+  progressBarTrack: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 2,
+    height: 4,
+    overflow: "hidden",
   },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  continueButtonDisabled: {
-    backgroundColor: '#999',
-    opacity: 0.5,
-  },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+  title: {
+    color: "#3a3b3c",
+    fontSize: 32,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+    marginBottom: 24,
   },
 });

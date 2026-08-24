@@ -32,9 +32,6 @@
       "superwallApiKey": "pk_Eg6xXf9tdLDmLgwI1Yni_",
       "superwallIosKey": "pk_qgcOKqqn6zGDjPDghi01l"
     },
-    "plugins": [
-      "react-native-edge-to-edge",
-      "expo-apple-authentication"
-    ]
+    "plugins": ["react-native-edge-to-edge", "expo-apple-authentication"]
   }
 }

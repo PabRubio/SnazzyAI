@@ -1,39 +1,74 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import Text from '../components/typography/Text';
-import { CameraView } from 'expo-camera';
-import { StatusBar } from 'expo-status-bar';
-import { StatusBar as RNStatusBar } from 'react-native';
-import { StyleSheet, View, TouchableOpacity, Dimensions, Alert, ActivityIndicator, FlatList, Image, Linking, Platform } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, interpolate, Easing, runOnJS } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import BottomSheet from '@gorhom/bottom-sheet';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../supabase/services/supabase';
-import { useNavigation } from '../components/navigation/NavigationContext';
-import { uploadPhoto, saveOutfitAnalysis, saveRecommendations, syncAppleProfileFromCredential } from '../../supabase/services/supabaseHelpers';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import { usePlacement, useSuperwall } from 'expo-superwall';
-import { useOnboarding } from './OnboardingContext';
-import { useCameraPermissions } from 'expo-camera';
-import * as ImagePicker from 'expo-image-picker';
-import * as StoreReview from 'expo-store-review';
+import { Ionicons } from "@expo/vector-icons";
+import BottomSheet, {
+  BottomSheetScrollView,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import * as AppleAuthentication from "expo-apple-authentication";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
+import * as StoreReview from "expo-store-review";
+import { usePlacement, useSuperwall } from "expo-superwall";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  Linking,
+  Platform,
+  StatusBar as RNStatusBar,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, {
+  Easing,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const { width, height } = Dimensions.get('window');
+import { supabase } from "../../supabase/services/supabase";
+import {
+  saveOutfitAnalysis,
+  saveRecommendations,
+  syncAppleProfileFromCredential,
+  uploadPhoto,
+} from "../../supabase/services/supabaseHelpers";
+import { useNavigation } from "../components/navigation/NavigationContext";
+import Text from "../components/typography/Text";
+import { useOnboarding } from "./OnboardingContext";
+
+const { height, width } = Dimensions.get("window");
 const BUTTON_SIZE = 60;
 const BUTTON_BORDER_SIZE = 4;
 
-const GOOGLE_WEB_CLIENT_ID = '100333808813-h41jibhk6cffhqec6qosait664ib30mm.apps.googleusercontent.com';
-const GOOGLE_IOS_CLIENT_ID = '100333808813-ad04fams427h7udjq5877dokoqmf8gss.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID =
+  "100333808813-h41jibhk6cffhqec6qosait664ib30mm.apps.googleusercontent.com";
+const GOOGLE_IOS_CLIENT_ID =
+  "100333808813-ad04fams427h7udjq5877dokoqmf8gss.apps.googleusercontent.com";
 
 GoogleSignin.configure({
-  scopes: ['profile', 'email'],
-  webClientId: GOOGLE_WEB_CLIENT_ID,
   iosClientId: GOOGLE_IOS_CLIENT_ID,
+  scopes: ["profile", "email"],
+  webClientId: GOOGLE_WEB_CLIENT_ID,
 });
 
 // Utility function for safe haptic feedback
@@ -42,7 +77,7 @@ const safeHaptic = async (hapticFunction) => {
     await hapticFunction();
   } catch (error) {
     // Silently handle haptic not supported on device
-    console.log('Haptics not available on this device');
+    console.log("Haptics not available on this device");
   }
 };
 
@@ -51,32 +86,38 @@ export default function FreeTrialScreen({ navigation }) {
   const [permissionRequested, setPermissionRequested] = useState(false);
   const { data: onboardingData } = useOnboarding();
   const userProfile = useMemo(() => {
-
     let birthDate = null;
     if (onboardingData.birth) {
       const year = onboardingData.birth.getFullYear();
-      const month = String(onboardingData.birth.getMonth() + 1).padStart(2, '0');
-      const day = String(onboardingData.birth.getDate()).padStart(2, '0');
+      const month = String(onboardingData.birth.getMonth() + 1).padStart(
+        2,
+        "0",
+      );
+      const day = String(onboardingData.birth.getDate()).padStart(2, "0");
       birthDate = `${year}-${month}-${day}`;
     }
 
     return {
       birth: birthDate,
-      gender: onboardingData.gender || null,
-      location: onboardingData.location || null,
-      height: onboardingData.height ? parseInt(onboardingData.height) : null,
-      weight: onboardingData.weight ? parseInt(onboardingData.weight) : null,
       currency: onboardingData.currency || null,
-      price_min: onboardingData.priceMin ? parseInt(onboardingData.priceMin) : null,
-      price_max: onboardingData.priceMax ? parseInt(onboardingData.priceMax) : null,
-      shirt_size: onboardingData.shirtSize || null,
-      pants_size: onboardingData.pantsSize || null,
-      shoe_size: onboardingData.shoeSize || null,
       favorite_brands: onboardingData.favoriteBrands || [],
       favorite_styles: onboardingData.favoriteStyles || [],
+      gender: onboardingData.gender || null,
+      height: onboardingData.height ? parseInt(onboardingData.height) : null,
+      location: onboardingData.location || null,
+      pants_size: onboardingData.pantsSize || null,
+      price_max: onboardingData.priceMax
+        ? parseInt(onboardingData.priceMax)
+        : null,
+      price_min: onboardingData.priceMin
+        ? parseInt(onboardingData.priceMin)
+        : null,
       response_1: onboardingData.questionnaire1 ?? null,
       response_2: onboardingData.questionnaire2 || null,
       response_3: onboardingData.questionnaire3 || null,
+      shirt_size: onboardingData.shirtSize || null,
+      shoe_size: onboardingData.shoeSize || null,
+      weight: onboardingData.weight ? parseInt(onboardingData.weight) : null,
     };
   }, [onboardingData]);
   const { switchToAppStack } = useNavigation();
@@ -89,8 +130,10 @@ export default function FreeTrialScreen({ navigation }) {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState(null);
   const [capturedPhotoBase64, setCapturedPhotoBase64] = useState(null);
-  const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
-  const [hasGeneratedRecommendations, setHasGeneratedRecommendations] = useState(false);
+  const [isGeneratingRecommendations, setIsGeneratingRecommendations] =
+    useState(false);
+  const [hasGeneratedRecommendations, setHasGeneratedRecommendations] =
+    useState(false);
   const [recommendationClickCount, setRecommendationClickCount] = useState(0);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const hasCameraPermission = cameraPermission?.granted === true;
@@ -108,13 +151,13 @@ export default function FreeTrialScreen({ navigation }) {
   const { dismiss } = useSuperwall();
   const { registerPlacement } = usePlacement({
     onDismiss: (info, result) => {
-      if (['purchased', 'restored'].includes(result?.type)) {
+      if (["purchased", "restored"].includes(result?.type)) {
         switchToAppStack();
       }
     },
     onError: (error) => {
-      console.error('Paywall error:', error);
-    }
+      console.error("Paywall error:", error);
+    },
   });
 
   // Show paywall for premium features
@@ -122,26 +165,29 @@ export default function FreeTrialScreen({ navigation }) {
     try {
       await dismiss();
       await registerPlacement({
-        placement: 'campaign_trigger'
+        placement: "campaign_trigger",
       });
     } catch (error) {
-      console.error('Failed to show paywall:', error);
+      console.error("Failed to show paywall:", error);
     }
   };
 
   // BottomSheet setup
   const bottomSheetRef = useRef(null);
-  const snapPoints = useMemo(() => ['25%', '85%'], []);
+  const snapPoints = useMemo(() => ["25%", "85%"], []);
 
   // Request in-app review when user swipes bottom sheet up for the first time
-  const handleBottomSheetChange = useCallback(async (index) => {
-    if (index === 1 && !hasRequestedReviewRef.current && analysisResult) {
-      hasRequestedReviewRef.current = true;
-      if (await StoreReview.hasAction()) {
-        StoreReview.requestReview();
+  const handleBottomSheetChange = useCallback(
+    async (index) => {
+      if (index === 1 && !hasRequestedReviewRef.current && analysisResult) {
+        hasRequestedReviewRef.current = true;
+        if (await StoreReview.hasAction()) {
+          StoreReview.requestReview();
+        }
       }
-    }
-  }, [analysisResult]);
+    },
+    [analysisResult],
+  );
 
   // Handle picking image from gallery
   const handlePickImage = async () => {
@@ -149,9 +195,9 @@ export default function FreeTrialScreen({ navigation }) {
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
         allowsEditing: false,
         base64: true,
+        mediaTypes: ["images"],
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -159,7 +205,7 @@ export default function FreeTrialScreen({ navigation }) {
       }
 
       const photo = result.assets[0];
-      console.log('Image picked:', photo.uri);
+      console.log("Image picked:", photo.uri);
 
       setIsProcessingCapture(true);
       setCapturedPhotoUri(photo.uri);
@@ -173,31 +219,34 @@ export default function FreeTrialScreen({ navigation }) {
       analysisAbortControllerRef.current = abortController;
 
       try {
-        console.log('Starting outfit analysis...');
+        console.log("Starting outfit analysis...");
 
-        const { data, error } = await supabase.functions.invoke('analyze-outfit', {
-          body: {
-            base64Image: photo.base64,
-            userProfile: userProfile
-          }
-        });
+        const { data, error } = await supabase.functions.invoke(
+          "analyze-outfit",
+          {
+            body: {
+              base64Image: photo.base64,
+              userProfile: userProfile,
+            },
+          },
+        );
 
         if (error) {
-          throw new Error(error.message || 'Analysis failed');
+          throw new Error(error.message || "Analysis failed");
         }
 
         if (!data) {
-          throw new Error('No analysis returned');
+          throw new Error("No analysis returned");
         }
 
         const analysisData = { analysis: data };
-        console.log('Analysis complete:', analysisData);
+        console.log("Analysis complete:", analysisData);
 
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
 
-        setCapturedPhotoUri(currentUri => {
+        setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
@@ -210,21 +259,20 @@ export default function FreeTrialScreen({ navigation }) {
 
           return currentUri;
         });
-
       } catch (analysisError) {
-        console.error('Analysis failed:', analysisError);
+        console.error("Analysis failed:", analysisError);
 
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
 
-        if (analysisError.name === 'AbortError') {
+        if (analysisError.name === "AbortError") {
           setIsAnalyzing(false);
           setIsProcessingCapture(false);
           return;
         }
 
-        setCapturedPhotoUri(currentUri => {
+        setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
@@ -234,20 +282,22 @@ export default function FreeTrialScreen({ navigation }) {
           setIsAnalyzing(false);
           bottomSheetRef.current?.close();
 
-          let errorMsg = 'Connection error. Please check your network.';
+          let errorMsg = "Connection error. Please check your network.";
           if (analysisError.message) {
-            if (analysisError.message.includes('Network') ||
-                analysisError.message.includes('connection') ||
-                analysisError.message.includes('timeout')) {
-              errorMsg = 'Connection error. Please check your network.';
-            } else if (analysisError.message.includes('API key')) {
-              errorMsg = 'Configuration error. Please check API settings.';
-            } else if (analysisError.message.includes('Rate limit')) {
-              errorMsg = 'Too many requests. Please try again.';
+            if (
+              analysisError.message.includes("Network") ||
+              analysisError.message.includes("connection") ||
+              analysisError.message.includes("timeout")
+            ) {
+              errorMsg = "Connection error. Please check your network.";
+            } else if (analysisError.message.includes("API key")) {
+              errorMsg = "Configuration error. Please check API settings.";
+            } else if (analysisError.message.includes("Rate limit")) {
+              errorMsg = "Too many requests. Please try again.";
             }
           }
 
-          Alert.alert('Analysis Failed', errorMsg, [{ text: 'OK' }]);
+          Alert.alert("Analysis Failed", errorMsg, [{ text: "OK" }]);
           setTimeout(() => {
             setCapturedPhotoUri(null);
             setIsProcessingCapture(false);
@@ -257,51 +307,55 @@ export default function FreeTrialScreen({ navigation }) {
         });
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      console.error("Error picking image:", error);
       setIsProcessingCapture(false);
     }
   };
 
   // Handle opening purchase URLs in browser
-  const handleOpenPurchaseUrl = useCallback(async (url) => {
-    if (recommendationClickCount >= 1) {
-      showPaywall();
-      return;
-    }
+  const handleOpenPurchaseUrl = useCallback(
+    async (url) => {
+      if (recommendationClickCount >= 1) {
+        showPaywall();
+        return;
+      }
 
-    setRecommendationClickCount(prev => prev + 1);
+      setRecommendationClickCount((prev) => prev + 1);
 
-    if (!url) {
-      Alert.alert(
-        'Link Unavailable',
-        'No purchase link available for this item.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    try {
-      const isValidUrl = url.startsWith('http://') || url.startsWith('https://');
-
-      if (!isValidUrl) {
+      if (!url) {
         Alert.alert(
-          'Invalid Link',
-          'The purchase link appears to be invalid.',
-          [{ text: 'OK' }]
+          "Link Unavailable",
+          "No purchase link available for this item.",
+          [{ text: "OK" }],
         );
         return;
       }
 
-      await Linking.openURL(url);
-    } catch (error) {
-      console.error('Error opening URL:', error);
-      Alert.alert(
-        'Error',
-        'Unable to open the link. Please try again later.',
-        [{ text: 'OK' }]
-      );
-    }
-  }, [recommendationClickCount]);
+      try {
+        const isValidUrl =
+          url.startsWith("http://") || url.startsWith("https://");
+
+        if (!isValidUrl) {
+          Alert.alert(
+            "Invalid Link",
+            "The purchase link appears to be invalid.",
+            [{ text: "OK" }],
+          );
+          return;
+        }
+
+        await Linking.openURL(url);
+      } catch (error) {
+        console.error("Error opening URL:", error);
+        Alert.alert(
+          "Error",
+          "Unable to open the link. Please try again later.",
+          [{ text: "OK" }],
+        );
+      }
+    },
+    [recommendationClickCount],
+  );
 
   // Handle favourite button - triggers paywall
   const handleToggleFavorite = useCallback(() => {
@@ -338,31 +392,34 @@ export default function FreeTrialScreen({ navigation }) {
   // Save onboarding profile to Supabase after sign-in
   const saveOnboardingProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
 
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          ...userProfile
-        });
+      const { error } = await supabase.from("profiles").upsert({
+        id: user.id,
+        ...userProfile,
+      });
 
       if (error) throw error;
-      console.log('Onboarding profile saved successfully');
+      console.log("Onboarding profile saved successfully");
 
       // Upload photo and save analysis
       if (capturedPhotoBase64 && analysisResult) {
         try {
-          const { url: photoUrl } = await uploadPhoto(capturedPhotoBase64, 'outfit-photos');
+          const { url: photoUrl } = await uploadPhoto(
+            capturedPhotoBase64,
+            "outfit-photos",
+          );
           const analysisId = await saveOutfitAnalysis(analysisResult, photoUrl);
-          setAnalysisResult(prev => ({ ...prev, analysisId }));
+          setAnalysisResult((prev) => ({ ...prev, analysisId }));
         } catch (err) {
-          console.error('Failed to save photo/analysis:', err);
+          console.error("Failed to save photo/analysis:", err);
         }
       }
     } catch (error) {
-      console.error('Error saving onboarding profile:', error);
+      console.error("Error saving onboarding profile:", error);
     }
   };
 
@@ -376,22 +433,27 @@ export default function FreeTrialScreen({ navigation }) {
     recommendationsAbortControllerRef.current = abortController;
 
     try {
-      console.log('Generating recommendations on demand...');
+      console.log("Generating recommendations on demand...");
 
       let accumulatedProducts = [];
 
       for (let run = 0; run < 3; run++) {
         if (abortController.signal.aborted) break;
 
-        console.log(`Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`);
+        console.log(
+          `Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`,
+        );
 
-        const { data, error } = await supabase.functions.invoke('search-products-2', {
-          body: {
-            userProfile: userProfile,
-            base64Image: capturedPhotoBase64,
-            outfitName: analysisResult?.outfitName || ''
-          }
-        });
+        const { data, error } = await supabase.functions.invoke(
+          "search-products-2",
+          {
+            body: {
+              base64Image: capturedPhotoBase64,
+              outfitName: analysisResult?.outfitName || "",
+              userProfile: userProfile,
+            },
+          },
+        );
 
         if (error) {
           console.error(`Recommendation run ${run + 1} failed:`, error.message);
@@ -399,9 +461,13 @@ export default function FreeTrialScreen({ navigation }) {
         }
 
         if (data?.products) {
-          const existingUrls = new Set(accumulatedProducts.map(p => p.purchaseUrl));
-          const newProducts = data.products.filter(p => !existingUrls.has(p.purchaseUrl));
-          newProducts.map(item => accumulatedProducts.push(item));
+          const existingUrls = new Set(
+            accumulatedProducts.map((p) => p.purchaseUrl),
+          );
+          const newProducts = data.products.filter(
+            (p) => !existingUrls.has(p.purchaseUrl),
+          );
+          newProducts.map((item) => accumulatedProducts.push(item));
         }
 
         if (accumulatedProducts.length >= 10) break;
@@ -410,7 +476,7 @@ export default function FreeTrialScreen({ navigation }) {
       const recommendations = accumulatedProducts.slice(0, 10);
 
       if (recommendations.length === 0) {
-        throw new Error('No recommendations returned after 3 attempts');
+        throw new Error("No recommendations returned after 3 attempts");
       }
 
       console.log(`Final recommendations: ${recommendations.length} products`);
@@ -419,16 +485,18 @@ export default function FreeTrialScreen({ navigation }) {
         recommendationsAbortControllerRef.current = null;
       }
 
-      setAnalysisResult(prevResult => {
+      setAnalysisResult((prevResult) => {
         const updatedResult = {
           ...prevResult,
-          recommendations: recommendations
+          recommendations: recommendations,
         };
 
         if (prevResult.analysisId) {
-          saveRecommendations(prevResult.analysisId, recommendations).catch(err => {
-            console.error('Failed to save recommendations:', err);
-          });
+          saveRecommendations(prevResult.analysisId, recommendations).catch(
+            (err) => {
+              console.error("Failed to save recommendations:", err);
+            },
+          );
         }
 
         return updatedResult;
@@ -436,15 +504,14 @@ export default function FreeTrialScreen({ navigation }) {
 
       setHasGeneratedRecommendations(true);
       setIsGeneratingRecommendations(false);
-
     } catch (error) {
-      console.error('Failed to generate recommendations:', error);
+      console.error("Failed to generate recommendations:", error);
 
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
       }
 
-      if (error.name === 'AbortError') {
+      if (error.name === "AbortError") {
         setIsGeneratingRecommendations(false);
         return;
       }
@@ -464,55 +531,56 @@ export default function FreeTrialScreen({ navigation }) {
 
       const idToken = userInfo.idToken || userInfo.data?.idToken;
       if (!idToken) {
-        throw new Error('No ID token returned from Google Sign-In');
+        throw new Error("No ID token returned from Google Sign-In");
       }
 
       const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: 'google',
+        provider: "google",
         token: idToken,
       });
 
       if (error) throw error;
 
-      console.log('Successfully signed in:', data.user.email);
+      console.log("Successfully signed in:", data.user.email);
 
       // Check if this is an existing user (has profile data already)
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('shoe_size')
-        .eq('id', data.user.id)
+        .from("profiles")
+        .select("shoe_size")
+        .eq("id", data.user.id)
         .single();
 
       const isExistingUser = profile && profile.shoe_size;
 
       if (isExistingUser) {
         // Existing user - redirect to Home without saving onboarding data
-        console.log('Existing user detected, redirecting to Home');
+        console.log("Existing user detected, redirecting to Home");
         switchToAppStack();
       } else {
         // New user - save profile first, then generate recommendations
-        console.log('New user detected, saving profile and generating recommendations');
+        console.log(
+          "New user detected, saving profile and generating recommendations",
+        );
         setIsAuthenticated(true);
         await saveOnboardingProfile();
         await generateRecommendationsAfterAuth();
         // Stay on FreeTrialScreen - new users must go through paywall
       }
-
     } catch (error) {
-      console.error('Sign-in error:', error);
+      console.error("Sign-in error:", error);
 
-      let errorMsg = 'Failed to sign in with Google';
-      if (error.code === 'SIGN_IN_CANCELLED') {
-        errorMsg = 'Sign-in cancelled';
-      } else if (error.code === 'IN_PROGRESS') {
-        errorMsg = 'Sign-in already in progress';
-      } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
-        errorMsg = 'Google Play Services not available';
+      let errorMsg = "Failed to sign in with Google";
+      if (error.code === "SIGN_IN_CANCELLED") {
+        errorMsg = "Sign-in cancelled";
+      } else if (error.code === "IN_PROGRESS") {
+        errorMsg = "Sign-in already in progress";
+      } else if (error.code === "PLAY_SERVICES_NOT_AVAILABLE") {
+        errorMsg = "Google Play Services not available";
       } else if (error.message) {
         errorMsg = error.message;
       }
 
-      Alert.alert('Sign-In Failed', errorMsg, [{ text: 'OK' }]);
+      Alert.alert("Sign-In Failed", errorMsg, [{ text: "OK" }]);
     } finally {
       setIsSigningIn(false);
     }
@@ -531,54 +599,55 @@ export default function FreeTrialScreen({ navigation }) {
       });
 
       if (!credential.identityToken) {
-        throw new Error('No Apple identity token returned');
+        throw new Error("No Apple identity token returned");
       }
 
       const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
         token: credential.identityToken,
-        provider: 'apple',
       });
 
       if (error) throw error;
 
-      console.log('Successfully signed in:', data.user.email);
+      console.log("Successfully signed in:", data.user.email);
       await syncAppleProfileFromCredential(credential, data.user);
 
       // Check if this is an existing user (has profile data already)
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('shoe_size')
-        .eq('id', data.user.id)
+        .from("profiles")
+        .select("shoe_size")
+        .eq("id", data.user.id)
         .single();
 
       const isExistingUser = profile && profile.shoe_size;
 
       if (isExistingUser) {
         // Existing user - redirect to Home without saving onboarding data
-        console.log('Existing user detected, redirecting to Home');
+        console.log("Existing user detected, redirecting to Home");
         switchToAppStack();
       } else {
         // New user - save profile first, then generate recommendations
-        console.log('New user detected, saving profile and generating recommendations');
+        console.log(
+          "New user detected, saving profile and generating recommendations",
+        );
         setIsAuthenticated(true);
         await saveOnboardingProfile();
         await generateRecommendationsAfterAuth();
         // Stay on FreeTrialScreen - new users must go through paywall
       }
-
     } catch (error) {
-      if (error.code === 'ERR_REQUEST_CANCELED') {
+      if (error.code === "ERR_REQUEST_CANCELED") {
         return;
       }
 
-      console.error('Sign-in error:', error);
+      console.error("Sign-in error:", error);
 
-      let errorMsg = 'Failed to sign in with Apple';
+      let errorMsg = "Failed to sign in with Apple";
       if (error.message) {
         errorMsg = error.message;
       }
 
-      Alert.alert('Sign-In Failed', errorMsg, [{ text: 'OK' }]);
+      Alert.alert("Sign-In Failed", errorMsg, [{ text: "OK" }]);
     } finally {
       setIsSigningIn(false);
     }
@@ -586,23 +655,33 @@ export default function FreeTrialScreen({ navigation }) {
 
   // Handle Generate Recommendations button - requires sign-in first
   const handleGenerateRecommendations = useCallback(async () => {
-    if (!analysisResult || !analysisResult.isValidPhoto || isGeneratingRecommendations || hasGeneratedRecommendations) {
+    if (
+      !analysisResult ||
+      !analysisResult.isValidPhoto ||
+      isGeneratingRecommendations ||
+      hasGeneratedRecommendations
+    ) {
       return;
     }
 
     if (!isAuthenticated) {
-      if (Platform.OS === 'ios') {
+      if (Platform.OS === "ios") {
         handleAppleSignIn();
       }
 
-      if (Platform.OS === 'android') {
+      if (Platform.OS === "android") {
         handleGoogleSignIn();
       }
       return;
     }
 
     await generateRecommendationsAfterAuth();
-  }, [analysisResult, isGeneratingRecommendations, hasGeneratedRecommendations, isAuthenticated]);
+  }, [
+    analysisResult,
+    isGeneratingRecommendations,
+    hasGeneratedRecommendations,
+    isAuthenticated,
+  ]);
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -618,29 +697,38 @@ export default function FreeTrialScreen({ navigation }) {
   const handlePressIn = async () => {
     // Don't start a new capture if one is being processed
     if (isProcessingCapture) return;
-    
+
     // Clear any pending delayed capture
     if (delayedCaptureRef.current) {
       clearTimeout(delayedCaptureRef.current);
       delayedCaptureRef.current = null;
     }
-    
+
     setIsCapturing(true);
-    
+
     // Start continuous very light haptic feedback
     hapticIntervalRef.current = setInterval(async () => {
       await safeHaptic(() => Haptics.selectionAsync());
     }, 50);
-    
+
     // Start animations
     buttonScale.value = withTiming(0.85, { duration: 100 });
-    
+
     // Start border glow animations
-    borderOpacity.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.ease) });
+    borderOpacity.value = withTiming(1, {
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+    });
     // Set static border opacity without pulsing
-    borderPulse.value = withTiming(0.5, { duration: 300, easing: Easing.out(Easing.ease) });
-    borderGlow.value = withTiming(0.7, { duration: 300, easing: Easing.out(Easing.ease) });
-    
+    borderPulse.value = withTiming(0.5, {
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+    });
+    borderGlow.value = withTiming(0.7, {
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+    });
+
     // Set capture timer (2 seconds)
     captureTimerRef.current = setTimeout(() => {
       // Button held for 2 seconds - stop haptic feedback
@@ -648,13 +736,13 @@ export default function FreeTrialScreen({ navigation }) {
         clearInterval(hapticIntervalRef.current);
         hapticIntervalRef.current = null;
       }
-      
+
       // Clear timer reference
       captureTimerRef.current = null;
-      
+
       // Reset button scale immediately when haptic ends
       buttonScale.value = withTiming(1, { duration: 200 });
-      
+
       // Take photo immediately when haptic ends
       handleCapture();
     }, 2000);
@@ -663,24 +751,33 @@ export default function FreeTrialScreen({ navigation }) {
   // Handle capture button press end
   const handlePressOut = () => {
     setIsCapturing(false);
-    
+
     // Clear haptic interval
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
       hapticIntervalRef.current = null;
     }
-    
+
     // Check if button was held for full 2 seconds
     if (captureTimerRef.current) {
       // Button released early - cancel capture and fade out border
       clearTimeout(captureTimerRef.current);
       captureTimerRef.current = null;
-      
+
       // Fade out border animations since capture was cancelled
-      borderOpacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
-      borderPulse.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
-      borderGlow.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
-      
+      borderOpacity.value = withTiming(0, {
+        duration: 200,
+        easing: Easing.in(Easing.ease),
+      });
+      borderPulse.value = withTiming(0, {
+        duration: 200,
+        easing: Easing.in(Easing.ease),
+      });
+      borderGlow.value = withTiming(0, {
+        duration: 200,
+        easing: Easing.in(Easing.ease),
+      });
+
       // Reset button scale
       buttonScale.value = withTiming(1, { duration: 100 });
     } else {
@@ -693,46 +790,55 @@ export default function FreeTrialScreen({ navigation }) {
   // Handle photo capture
   const handleCapture = async () => {
     if (!cameraRef.current || !isCameraReady || isProcessingCapture) return;
-    
+
     // Set processing flag
     setIsProcessingCapture(true);
-    
+
     // Clear delayed capture ref
     if (delayedCaptureRef.current) {
       clearTimeout(delayedCaptureRef.current);
       delayedCaptureRef.current = null;
     }
-    
+
     // Clear haptic interval immediately
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
       hapticIntervalRef.current = null;
     }
-    
+
     // Fade out border animation right when photo is taken
-    borderOpacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
-    borderPulse.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
-    borderGlow.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
-    
+    borderOpacity.value = withTiming(0, {
+      duration: 200,
+      easing: Easing.in(Easing.ease),
+    });
+    borderPulse.value = withTiming(0, {
+      duration: 200,
+      easing: Easing.in(Easing.ease),
+    });
+    borderGlow.value = withTiming(0, {
+      duration: 200,
+      easing: Easing.in(Easing.ease),
+    });
+
     try {
       // Photo capture with shutter sound disabled
-      
+
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.7,
         base64: true,
         exif: false,
+        quality: 0.7,
         shutterSound: false,
       });
-      
-      console.log('Photo captured:', photo.uri);
+
+      console.log("Photo captured:", photo.uri);
 
       // Store the captured photo URI and base64
       setCapturedPhotoUri(photo.uri);
       setCapturedPhotoBase64(photo.base64);
-      
+
       // Reset capture state
       setIsCapturing(false);
-      
+
       // Start analysis and show BottomSheet immediately with the photo
       setIsAnalyzing(true);
       setAnalysisResult(null);
@@ -743,26 +849,29 @@ export default function FreeTrialScreen({ navigation }) {
       analysisAbortControllerRef.current = abortController;
 
       try {
-        console.log('Starting outfit analysis...');
+        console.log("Starting outfit analysis...");
 
         // Call Supabase edge function for outfit analysis
-        const { data, error } = await supabase.functions.invoke('analyze-outfit', {
-          body: {
-            base64Image: photo.base64,
-            userProfile: userProfile
-          }
-        });
+        const { data, error } = await supabase.functions.invoke(
+          "analyze-outfit",
+          {
+            body: {
+              base64Image: photo.base64,
+              userProfile: userProfile,
+            },
+          },
+        );
 
         if (error) {
-          throw new Error(error.message || 'Analysis failed');
+          throw new Error(error.message || "Analysis failed");
         }
 
         if (!data) {
-          throw new Error('No analysis returned');
+          throw new Error("No analysis returned");
         }
 
         const result = { analysis: data };
-        console.log('Analysis complete:', result);
+        console.log("Analysis complete:", result);
 
         // Clear abort controller on success
         if (analysisAbortControllerRef.current === abortController) {
@@ -770,7 +879,7 @@ export default function FreeTrialScreen({ navigation }) {
         }
 
         // Check if photo was cleared (user pressed refresh) - if so, don't show results
-        setCapturedPhotoUri(currentUri => {
+        setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
             // Photo was cleared, cancel showing results
             setIsAnalyzing(false);
@@ -784,9 +893,8 @@ export default function FreeTrialScreen({ navigation }) {
 
           return currentUri;
         });
-        
       } catch (analysisError) {
-        console.error('Analysis failed:', analysisError);
+        console.error("Analysis failed:", analysisError);
 
         // Clear abort controller on error
         if (analysisAbortControllerRef.current === abortController) {
@@ -794,14 +902,14 @@ export default function FreeTrialScreen({ navigation }) {
         }
 
         // If request was aborted, just clean up silently
-        if (analysisError.name === 'AbortError') {
+        if (analysisError.name === "AbortError") {
           setIsAnalyzing(false);
           setIsProcessingCapture(false);
           return;
         }
 
         // Check if photo was cleared (user pressed refresh) - if so, don't show error
-        setCapturedPhotoUri(currentUri => {
+        setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
             // Photo was cleared, just reset flags
             setIsAnalyzing(false);
@@ -814,18 +922,20 @@ export default function FreeTrialScreen({ navigation }) {
           bottomSheetRef.current?.close();
 
           // Determine error message based on error type
-          let errorMsg = 'Connection error. Please check your network.';
+          let errorMsg = "Connection error. Please check your network.";
           if (analysisError.message) {
-            if (analysisError.message.includes('Network') ||
-                analysisError.message.includes('connection') ||
-                analysisError.message.includes('timeout')) {
-              errorMsg = 'Connection error. Please check your network.';
-            } else if (analysisError.message.includes('API key')) {
-              errorMsg = 'Configuration error. Please check API settings.';
-            } else if (analysisError.message.includes('Rate limit')) {
-              errorMsg = 'Too many requests. Please wait a moment.';
+            if (
+              analysisError.message.includes("Network") ||
+              analysisError.message.includes("connection") ||
+              analysisError.message.includes("timeout")
+            ) {
+              errorMsg = "Connection error. Please check your network.";
+            } else if (analysisError.message.includes("API key")) {
+              errorMsg = "Configuration error. Please check API settings.";
+            } else if (analysisError.message.includes("Rate limit")) {
+              errorMsg = "Too many requests. Please wait a moment.";
             } else {
-              errorMsg = 'Failed to analyze outfit. Please try again.';
+              errorMsg = "Failed to analyze outfit. Please try again.";
             }
           }
 
@@ -840,24 +950,21 @@ export default function FreeTrialScreen({ navigation }) {
           return currentUri;
         });
       }
-      
     } catch (error) {
-      console.error('Error taking picture:', error);
+      console.error("Error taking picture:", error);
       setIsCapturing(false);
       setIsProcessingCapture(false);
-      
-      Alert.alert(
-        'Capture Failed',
-        'Unable to take photo. Please try again.',
-        [{ text: 'OK' }]
-      );
-      
+
+      Alert.alert("Capture Failed", "Unable to take photo. Please try again.", [
+        { text: "OK" },
+      ]);
+
       // Clear haptic interval on error as well
       if (hapticIntervalRef.current) {
         clearInterval(hapticIntervalRef.current);
         hapticIntervalRef.current = null;
       }
-      
+
       // Clear delayed capture on error
       if (delayedCaptureRef.current) {
         clearTimeout(delayedCaptureRef.current);
@@ -874,33 +981,34 @@ export default function FreeTrialScreen({ navigation }) {
         const result = await requestCameraPermission();
         if (!result.granted) {
           Alert.alert(
-            'Camera Access Required',
-            'SnazzyAI needs camera access to analyze your outfits. Please enable camera permissions in Settings.',
+            "Camera Access Required",
+            "SnazzyAI needs camera access to analyze your outfits. Please enable camera permissions in Settings.",
             [
-              { text: 'Go Back', onPress: () => navigation.goBack() },
-              { text: 'Open Settings', onPress: () => Linking.openSettings() }
-            ]
+              { onPress: () => navigation.goBack(), text: "Go Back" },
+              { onPress: () => Linking.openSettings(), text: "Open Settings" },
+            ],
           );
         }
       }
     };
 
     requestPermission();
-    RNStatusBar.setHidden(true, 'none');
+    RNStatusBar.setHidden(true, "none");
 
     return () => {
       if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
       if (delayedCaptureRef.current) clearTimeout(delayedCaptureRef.current);
       if (hapticIntervalRef.current) clearInterval(hapticIntervalRef.current);
-      if (analysisAbortControllerRef.current) analysisAbortControllerRef.current.abort();
-      if (recommendationsAbortControllerRef.current) recommendationsAbortControllerRef.current.abort();
+      if (analysisAbortControllerRef.current)
+        analysisAbortControllerRef.current.abort();
+      if (recommendationsAbortControllerRef.current)
+        recommendationsAbortControllerRef.current.abort();
     };
   }, []);
 
   useEffect(() => {
     cameraPermission?.granted && setIsCameraReady(false);
   }, [cameraPermission?.granted]);
-
 
   // Animated styles
   const buttonAnimatedStyle = useAnimatedStyle(() => {
@@ -911,7 +1019,7 @@ export default function FreeTrialScreen({ navigation }) {
 
   const buttonContainerStyle = {
     opacity: isCameraReady ? 1 : 0,
-    pointerEvents: isCameraReady ? 'auto' : 'none',
+    pointerEvents: isCameraReady ? "auto" : "none",
   };
 
   // Border glow animated styles
@@ -925,14 +1033,16 @@ export default function FreeTrialScreen({ navigation }) {
     const intensity = interpolate(
       borderPulse.value,
       [0, 0.3, 1],
-      [0.3, 0.4, 0.5]
+      [0.3, 0.4, 0.5],
     );
     return {
       opacity: intensity,
     };
   });
 
-  const buttonText = isAuthenticated ? 'Generate Recommendations' : 'Sign in with Apple';
+  const buttonText = isAuthenticated
+    ? "Generate Recommendations"
+    : "Sign in with Apple";
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -941,9 +1051,9 @@ export default function FreeTrialScreen({ navigation }) {
           // Show captured photo as background when photo is taken
           <>
             <Image
+              resizeMode="cover"
               source={{ uri: capturedPhotoUri }}
               style={StyleSheet.absoluteFillObject}
-              resizeMode="cover"
             />
             {/* Snazzy AI title - hide during processing */}
             {!isProcessingCapture && (
@@ -957,23 +1067,23 @@ export default function FreeTrialScreen({ navigation }) {
           <>
             {hasCameraPermission && (
               <CameraView
-                facing="back"
-                ref={cameraRef}
                 enableTorch={torchEnabled}
-                style={StyleSheet.absoluteFillObject}
                 faceDetectorSettings={{
-                  mode: 'none',
+                  mode: "none",
                 }}
+                facing="back"
                 onCameraReady={() => {
                   // Add a small delay to ensure camera is fully initialized
                   setTimeout(() => {
                     setIsCameraReady(true);
                   }, 500);
                 }}
+                ref={cameraRef}
+                style={StyleSheet.absoluteFillObject}
               />
             )}
             {/* Corner Brackets */}
-            <View style={styles.cornerBracketsContainer} pointerEvents="none">
+            <View pointerEvents="none" style={styles.cornerBracketsContainer}>
               <View style={[styles.cornerBracket, styles.cornerTopLeft]} />
               <View style={[styles.cornerBracket, styles.cornerTopRight]} />
               <View style={[styles.cornerBracket, styles.cornerBottomLeft]} />
@@ -982,25 +1092,37 @@ export default function FreeTrialScreen({ navigation }) {
             {showInstruction && (
               <View style={styles.instructionContainer}>
                 <TouchableOpacity
-                  style={styles.instructionCloseButton}
-                  onPress={() => setShowInstruction(false)}
                   activeOpacity={0.7}
+                  onPress={() => setShowInstruction(false)}
+                  style={styles.instructionCloseButton}
                 >
-                  <Ionicons name="close" size={18} color="#fff" />
+                  <Ionicons color="#fff" name="close" size={18} />
                 </TouchableOpacity>
-                <Text style={styles.instructionText}>Hold the capture button for 2 seconds to take a picture</Text>
+                <Text style={styles.instructionText}>
+                  Hold the capture button for 2 seconds to take a picture
+                </Text>
               </View>
             )}
           </>
         )}
-        
+
         {/* Glowing Border Effect */}
-        <Animated.View style={[styles.borderContainer, borderAnimatedStyle]} pointerEvents="none">
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.borderContainer, borderAnimatedStyle]}
+        >
           <Animated.View style={[styles.borderWrapper, borderGradientStyle]}>
             <LinearGradient
-              colors={['#FF006E', '#8338EC', '#3A86FF', '#06FFB4', '#FFD60A', '#FF006E']}
-              start={{ x: 0, y: 0 }}
+              colors={[
+                "#FF006E",
+                "#8338EC",
+                "#3A86FF",
+                "#06FFB4",
+                "#FFD60A",
+                "#FF006E",
+              ]}
               end={{ x: 1, y: 1 }}
+              start={{ x: 0, y: 0 }}
               style={styles.borderOuter}
             >
               <View style={styles.borderInner} />
@@ -1012,198 +1134,307 @@ export default function FreeTrialScreen({ navigation }) {
         {!capturedPhotoUri && (
           <View style={styles.captureButtonContainer}>
             {/* Gallery icon - left */}
-            <TouchableOpacity
-              onPress={handlePickImage}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="images-outline" size={28} color="#fff" />
+            <TouchableOpacity activeOpacity={0.7} onPress={handlePickImage}>
+              <Ionicons color="#fff" name="images-outline" size={28} />
             </TouchableOpacity>
 
             {/* Main Button */}
-            <Animated.View style={[styles.captureButton, buttonAnimatedStyle, buttonContainerStyle]}>
+            <Animated.View
+              style={[
+                styles.captureButton,
+                buttonAnimatedStyle,
+                buttonContainerStyle,
+              ]}
+            >
               <TouchableOpacity
-                style={styles.captureButtonTouch}
-                onPressOut={handlePressOut}
-                onPressIn={handlePressIn}
                 activeOpacity={1}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                style={styles.captureButtonTouch}
               />
             </Animated.View>
 
             {/* Sparkles icon - right */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => setTorchEnabled(prev => !prev)}
+              onPress={() => setTorchEnabled((prev) => !prev)}
             >
-              <Ionicons name="sparkles" size={28} color={torchEnabled ? "#FFD60A" : "#fff"} />
+              <Ionicons
+                color={torchEnabled ? "#FFD60A" : "#fff"}
+                name="sparkles"
+                size={28}
+              />
             </TouchableOpacity>
           </View>
         )}
-        
+
         {/* Bottom Sheet for Analysis Results */}
         {(isAnalyzing || analysisResult) && (
           <BottomSheet
-              index={0}
-              ref={bottomSheetRef}
-              animateOnMount={true}
-              enableOverDrag={false}
-              snapPoints={snapPoints}
-              backdropComponent={null}
-              enableDynamicSizing={false}
-              enablePanDownToClose={false}
-              onChange={handleBottomSheetChange}
-              maxDynamicContentSize={height * 0.85}
-              backgroundStyle={styles.bottomSheetBackground}
-              handleIndicatorStyle={styles.bottomSheetIndicator}
-            >
-          <BottomSheetScrollView
-            contentContainerStyle={styles.bottomSheetContent}
-            showsVerticalScrollIndicator={false}
+            animateOnMount={true}
+            backdropComponent={null}
+            backgroundStyle={styles.bottomSheetBackground}
+            enableDynamicSizing={false}
+            enableOverDrag={false}
+            enablePanDownToClose={false}
+            handleIndicatorStyle={styles.bottomSheetIndicator}
+            index={0}
+            maxDynamicContentSize={height * 0.85}
+            onChange={handleBottomSheetChange}
+            ref={bottomSheetRef}
+            snapPoints={snapPoints}
           >
-            {isAnalyzing ? (
-              <View style={styles.loadingContent}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingTitle}>Analyzing Outfit...</Text>
-                <Text style={styles.loadingSubtitle}>AI is reviewing your style</Text>
-              </View>
-            ) : analysisResult?.error ? (
-              <View style={styles.errorContent}>
-                <Text style={styles.errorTitle}>Analysis Failed</Text>
-                <Text style={styles.errorMessage}>{analysisResult.error}</Text>
-              </View>
-            ) : analysisResult ? (
-              <View style={styles.resultContent}>
-                <View style={styles.resultHeader}>
-                  <Text style={styles.outfitName}>{analysisResult.outfitName}</Text>
-                  <Text style={styles.rating}>⭐ {analysisResult.rating}/10</Text>
-                  <Text
-                    style={styles.shortDescription}
-                    numberOfLines={isDescriptionExpanded ? undefined : 2}
-                    ellipsizeMode="tail"
-                  >
-                    {analysisResult.shortDescription}
+            <BottomSheetScrollView
+              contentContainerStyle={styles.bottomSheetContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {isAnalyzing ? (
+                <View style={styles.loadingContent}>
+                  <ActivityIndicator color="#007AFF" size="large" />
+                  <Text style={styles.loadingTitle}>Analyzing Outfit...</Text>
+                  <Text style={styles.loadingSubtitle}>
+                    AI is reviewing your style
                   </Text>
-                  <TouchableOpacity onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
-                    <Text style={styles.seeMoreText}>
-                      {isDescriptionExpanded ? 'see less' : 'see more'}
-                    </Text>
-                  </TouchableOpacity>
                 </View>
+              ) : analysisResult?.error ? (
+                <View style={styles.errorContent}>
+                  <Text style={styles.errorTitle}>Analysis Failed</Text>
+                  <Text style={styles.errorMessage}>
+                    {analysisResult.error}
+                  </Text>
+                </View>
+              ) : analysisResult ? (
+                <View style={styles.resultContent}>
+                  <View style={styles.resultHeader}>
+                    <Text style={styles.outfitName}>
+                      {analysisResult.outfitName}
+                    </Text>
+                    <Text style={styles.rating}>
+                      ⭐ {analysisResult.rating}/10
+                    </Text>
+                    <Text
+                      ellipsizeMode="tail"
+                      numberOfLines={isDescriptionExpanded ? undefined : 2}
+                      style={styles.shortDescription}
+                    >
+                      {analysisResult.shortDescription}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setIsDescriptionExpanded(!isDescriptionExpanded)
+                      }
+                    >
+                      <Text style={styles.seeMoreText}>
+                        {isDescriptionExpanded ? "see less" : "see more"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
-                {/* Recommendations Section - Always visible */}
-                <View style={styles.recommendationsContainer}>
-                  <Text style={styles.recommendationsTitle}>Recommended Items</Text>
+                  {/* Recommendations Section - Always visible */}
+                  <View style={styles.recommendationsContainer}>
+                    <Text style={styles.recommendationsTitle}>
+                      Recommended Items
+                    </Text>
 
-                  {/* Show items if recommendations have been generated */}
-                  {hasGeneratedRecommendations && analysisResult.recommendations && analysisResult.recommendations.length > 0 ? (
-                    analysisResult.recommendations.map((item, index) => (
-                      <TouchableOpacity
-                        key={`rec-${index}`}
-                        style={[styles.recommendationCard, { marginBottom: 18 }]}
-                        onPress={() => handleOpenPurchaseUrl(item.purchaseUrl)}
-                        activeOpacity={0.8}
-                      >
-                        <View style={styles.recommendationImageContainer}>
-                          <Image
-                            source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
-                            style={styles.recommendationImage}
-                            resizeMode="cover"
-                          />
+                    {/* Show items if recommendations have been generated */}
+                    {hasGeneratedRecommendations &&
+                    analysisResult.recommendations &&
+                    analysisResult.recommendations.length > 0
+                      ? analysisResult.recommendations.map((item, index) => (
                           <TouchableOpacity
-                            style={styles.heartButton}
-                            onPress={handleToggleFavorite}
-                            activeOpacity={0.7}
+                            activeOpacity={0.8}
+                            key={`rec-${index}`}
+                            onPress={() =>
+                              handleOpenPurchaseUrl(item.purchaseUrl)
+                            }
+                            style={[
+                              styles.recommendationCard,
+                              { marginBottom: 18 },
+                            ]}
                           >
-                            <Ionicons name="heart-outline" size={24} color="#999" />
+                            <View style={styles.recommendationImageContainer}>
+                              <Image
+                                resizeMode="cover"
+                                source={{
+                                  uri:
+                                    item.imageUrl ||
+                                    "https://via.placeholder.com/150",
+                                }}
+                                style={styles.recommendationImage}
+                              />
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={handleToggleFavorite}
+                                style={styles.heartButton}
+                              >
+                                <Ionicons
+                                  color="#999"
+                                  name="heart-outline"
+                                  size={24}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                            <View style={styles.recommendationContent}>
+                              <Text
+                                numberOfLines={1}
+                                style={styles.recommendationName}
+                              >
+                                {item.name}
+                              </Text>
+                              <Text
+                                numberOfLines={1}
+                                style={styles.recommendationBrand}
+                              >
+                                {item.brand}
+                              </Text>
+                              <Text
+                                numberOfLines={2}
+                                style={styles.recommendationDescription}
+                              >
+                                {item.description}
+                              </Text>
+                              <Text style={styles.recommendationPrice}>
+                                {item.price}
+                              </Text>
+                            </View>
                           </TouchableOpacity>
-                        </View>
-                        <View style={styles.recommendationContent}>
-                          <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={styles.recommendationBrand} numberOfLines={1}>{item.brand}</Text>
-                          <Text style={styles.recommendationDescription} numberOfLines={2}>
-                            {item.description}
-                          </Text>
-                          <Text style={styles.recommendationPrice}>{item.price}</Text>
-                        </View>
+                        ))
+                      : /* Show placeholder when no recommendations generated yet */
+                        !hasGeneratedRecommendations && (
+                          <View
+                            style={[
+                              styles.placeholderContainer,
+                              { paddingBottom: 15 },
+                            ]}
+                          >
+                            <Ionicons
+                              color="#ccc"
+                              name="shirt-outline"
+                              size={48}
+                            />
+                            <Text style={styles.placeholderText}>
+                              Sign up to generate items!
+                            </Text>
+                          </View>
+                        )}
+                  </View>
+
+                  {analysisResult.isValidPhoto === false && (
+                    <View style={{ paddingBottom: insets.bottom + 12 }}>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={handleRefresh}
+                        style={styles.generateButton}
+                      >
+                        <Ionicons
+                          color="#fff"
+                          name="refresh"
+                          size={20}
+                          style={styles.buttonIcon}
+                        />
+                        <Text style={styles.generateButtonText}>
+                          Retake Photo
+                        </Text>
                       </TouchableOpacity>
-                    ))
-                  ) : (
-                    /* Show placeholder when no recommendations generated yet */
-                    !hasGeneratedRecommendations && (
-                      <View style={[styles.placeholderContainer, { paddingBottom: 15 }]}>
-                        <Ionicons name="shirt-outline" size={48} color="#ccc" />
-                        <Text style={styles.placeholderText}>Sign up to generate items!</Text>
+                    </View>
+                  )}
+
+                  {/* Generate Recommendations Button - At the very bottom */}
+                  {!hasGeneratedRecommendations &&
+                    analysisResult.isValidPhoto && (
+                      <View style={{ paddingBottom: insets.bottom + 12 }}>
+                        {Platform.OS === "ios" &&
+                        !isAuthenticated &&
+                        !isGeneratingRecommendations &&
+                        !isSigningIn ? (
+                          <AppleAuthentication.AppleAuthenticationButton
+                            buttonStyle={
+                              AppleAuthentication.AppleAuthenticationButtonStyle
+                                .BLACK
+                            }
+                            buttonType={
+                              AppleAuthentication.AppleAuthenticationButtonType
+                                .SIGN_UP
+                            }
+                            cornerRadius={12}
+                            onPress={handleGenerateRecommendations}
+                            style={styles.appleGenerateButton}
+                          />
+                        ) : (
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            disabled={
+                              isGeneratingRecommendations || isSigningIn
+                            }
+                            onPress={handleGenerateRecommendations}
+                            style={[
+                              styles.generateButton,
+                              (isGeneratingRecommendations || isSigningIn) &&
+                                styles.generateButtonDisabled,
+                            ]}
+                          >
+                            {isGeneratingRecommendations || isSigningIn ? (
+                              <>
+                                <ActivityIndicator
+                                  color="#fff"
+                                  size="small"
+                                  style={styles.buttonLoader}
+                                />
+                                <Text
+                                  numberOfLines={1}
+                                  style={styles.generateButtonText}
+                                >
+                                  Fetching Recommendations
+                                </Text>
+                              </>
+                            ) : Platform.OS === "android" ? (
+                              <>
+                                <Image
+                                  source={require("../../assets/logo-google.png")}
+                                  style={styles.googleIconImage}
+                                />
+                                <Text
+                                  numberOfLines={1}
+                                  style={styles.generateButtonText}
+                                >
+                                  Generate Recommendations
+                                </Text>
+                              </>
+                            ) : (
+                              <Text
+                                numberOfLines={1}
+                                style={styles.generateButtonText}
+                              >
+                                {buttonText}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        )}
                       </View>
-                    )
+                    )}
+
+                  {hasGeneratedRecommendations && (
+                    <View style={{ paddingBottom: insets.bottom + 12 }}>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={showPaywall}
+                        style={styles.generateButton}
+                      >
+                        <Ionicons
+                          color="#fff"
+                          name="sparkles"
+                          size={20}
+                          style={styles.buttonIcon}
+                        />
+                        <Text style={styles.generateButtonText}>
+                          Regenerate
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
-
-                {analysisResult.isValidPhoto === false && (
-                  <View style={{ paddingBottom: insets.bottom + 12 }}>
-                    <TouchableOpacity
-                      style={styles.generateButton}
-                      onPress={handleRefresh}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="refresh" size={20} color="#fff" style={styles.buttonIcon} />
-                      <Text style={styles.generateButtonText}>Retake Photo</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Generate Recommendations Button - At the very bottom */}
-                {!hasGeneratedRecommendations && analysisResult.isValidPhoto && (
-                  <View style={{ paddingBottom: insets.bottom + 12 }}>
-                    {Platform.OS === 'ios' && !isAuthenticated && !isGeneratingRecommendations && !isSigningIn ? (
-                      <AppleAuthentication.AppleAuthenticationButton
-                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
-                        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                        onPress={handleGenerateRecommendations}
-                        style={styles.appleGenerateButton}
-                        cornerRadius={12}
-                      />
-                    ) : (
-                      <TouchableOpacity
-                        style={[
-                          styles.generateButton,
-                          (isGeneratingRecommendations || isSigningIn) && styles.generateButtonDisabled
-                        ]}
-                        onPress={handleGenerateRecommendations}
-                        disabled={isGeneratingRecommendations || isSigningIn}
-                        activeOpacity={0.7}
-                      >
-                        {isGeneratingRecommendations || isSigningIn ? (
-                          <>
-                            <ActivityIndicator size="small" color="#fff" style={styles.buttonLoader} />
-                            <Text style={styles.generateButtonText} numberOfLines={1}>Fetching Recommendations</Text>
-                          </>
-                        ) : Platform.OS === 'android' ? (
-                          <>
-                            <Image source={require('../../assets/logo-google.png')} style={styles.googleIconImage} />
-                            <Text style={styles.generateButtonText} numberOfLines={1}>Generate Recommendations</Text>
-                          </>
-                        ) : (
-                          <Text style={styles.generateButtonText} numberOfLines={1}>{buttonText}</Text>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-
-                {hasGeneratedRecommendations && (
-                  <View style={{ paddingBottom: insets.bottom + 12 }}>
-                    <TouchableOpacity
-                      style={styles.generateButton}
-                      onPress={showPaywall}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="sparkles" size={20} color="#fff" style={styles.buttonIcon} />
-                      <Text style={styles.generateButtonText}>Regenerate</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ) : null}
-          </BottomSheetScrollView>
+              ) : null}
+            </BottomSheetScrollView>
           </BottomSheet>
         )}
 
@@ -1214,358 +1445,358 @@ export default function FreeTrialScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#3a3b3c',
-  },
-  captureButtonContainer: {
-    position: 'absolute',
-    bottom: 70,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 40,
-  },
-  captureButton: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: BUTTON_SIZE / 2,
-    backgroundColor: '#fff',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  captureButtonTouch: {
-    width: '100%',
-    height: '100%',
-    borderRadius: BUTTON_SIZE / 2,
-  },
-  // BottomSheet styles
-  bottomSheetBackground: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  bottomSheetIndicator: {
-    backgroundColor: '#ddd',
-    width: 40,
-    height: 4,
-  },
-  bottomSheetContent: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    flexGrow: 1,
-  },
-  loadingContent: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  loadingTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#3a3b3c',
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  loadingSubtitle: {
-    fontSize: 14,
-    color: '#3a3b3c',
-    textAlign: 'center',
-  },
-  errorContent: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#FF3B30',
-    marginBottom: 8,
-  },
-  errorMessage: {
-    fontSize: 14,
-    color: '#3a3b3c',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  resultContent: {
-    flex: 1,
-  },
-  resultHeader: {
-    paddingVertical: 20,
-    paddingHorizontal: 0,
-  },
-  outfitName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#3a3b3c',
-    marginBottom: 8,
-  },
-  rating: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#007AFF',
-    marginBottom: 12,
-  },
-  shortDescription: {
-    fontSize: 16,
-    color: '#3a3b3c',
-    lineHeight: 22,
-  },
-  seeMoreText: {
-    fontSize: 14,
-    color: '#007AFF',
-    marginTop: 4,
-  },
-  generateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  generateButtonDisabled: {
-    backgroundColor: '#999',
-    opacity: 0.5,
-  },
   appleGenerateButton: {
-    width: '100%',
     height: 48,
-  },
-  generateButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  googleIconImage: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
-  },
-  buttonLoader: {
-    marginRight: 8,
-  },
-  recommendationsContainer: {
-    flex: 1,
-    marginTop: 10,
-  },
-  recommendationsTitle: {
-    fontSize: 18,
-    marginBottom: 15,
-    fontWeight: '500',
-    color: '#3a3b3c',
-  },
-  placeholderContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  placeholderText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#999',
-    marginTop: 12,
-  },
-  recommendationsList: {
-    paddingBottom: 20,
-  },
-  recommendationCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    alignItems: 'flex-start',
-  },
-  recommendationImageContainer: {
-    marginRight: 12,
-    width: 80,
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    justifyContent: 'flex-start',
-  },
-  recommendationImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-  },
-  heartButton: {
-    marginTop: 'auto',
-    marginBottom: 'auto',
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recommendationContent: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  recommendationName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#3a3b3c',
-    marginBottom: 2,
-  },
-  recommendationBrand: {
-    fontSize: 14,
-    color: '#007AFF',
-    marginBottom: 4,
-  },
-  recommendationDescription: {
-    fontSize: 13,
-    color: '#3a3b3c',
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  recommendationPrice: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#3a3b3c',
-  },
-  recommendationSeparator: {
-    height: 12,
+    width: "100%",
   },
   // Border glow styles
   borderContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
   },
-  borderWrapper: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    shadowColor: '#FF006E',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 25,
-    elevation: 15,
+  borderInner: {
+    backgroundColor: "transparent",
+    borderRadius: 0,
+    flex: 1,
   },
   borderOuter: {
-    flex: 1,
     borderRadius: 0,
+    flex: 1,
     padding: 0,
   },
-  borderInner: {
+  borderWrapper: {
+    bottom: 0,
+    elevation: 15,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    shadowColor: "#FF006E",
+    shadowOffset: { height: 0, width: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 25,
+    top: 0,
+  },
+  // BottomSheet styles
+  bottomSheetBackground: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { height: -4, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  bottomSheetContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  bottomSheetIndicator: {
+    backgroundColor: "#ddd",
+    height: 4,
+    width: 40,
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
+  buttonLoader: {
+    marginRight: 8,
+  },
+  captureButton: {
+    backgroundColor: "#fff",
+    borderRadius: BUTTON_SIZE / 2,
+    elevation: 8,
+    height: BUTTON_SIZE,
+    shadowColor: "#000",
+    shadowOffset: { height: 4, width: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    width: BUTTON_SIZE,
+  },
+  captureButtonContainer: {
+    alignItems: "center",
+    bottom: 70,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    left: 0,
+    paddingHorizontal: 40,
+    position: "absolute",
+    right: 0,
+  },
+  captureButtonTouch: {
+    borderRadius: BUTTON_SIZE / 2,
+    height: "100%",
+    width: "100%",
+  },
+  container: {
+    backgroundColor: "#3a3b3c",
     flex: 1,
-    backgroundColor: 'transparent',
-    borderRadius: 0,
+  },
+  cornerBottomLeft: {
+    borderBottomLeftRadius: 20,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    bottom: 0,
+    left: 0,
+  },
+  cornerBottomRight: {
+    borderBottomRightRadius: 20,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    bottom: 0,
+    right: 0,
+  },
+  cornerBracket: {
+    borderColor: "#fff",
+    height: 40,
+    position: "absolute",
+    width: 40,
+  },
+  cornerBracketsContainer: {
+    bottom: "30%",
+    left: "10%",
+    position: "absolute",
+    right: "10%",
+    top: "25%",
+  },
+  cornerTopLeft: {
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 20,
+    borderTopWidth: 3,
+    left: 0,
+    top: 0,
+  },
+  cornerTopRight: {
+    borderRightWidth: 3,
+    borderTopRightRadius: 20,
+    borderTopWidth: 3,
+    right: 0,
+    top: 0,
+  },
+  errorContent: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  errorMessage: {
+    color: "#3a3b3c",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  errorTitle: {
+    color: "#FF3B30",
+    fontSize: 18,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  generateButton: {
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    elevation: 3,
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  generateButtonDisabled: {
+    backgroundColor: "#999",
+    opacity: 0.5,
+  },
+  generateButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  googleIconImage: {
+    height: 20,
+    marginRight: 8,
+    width: 20,
+  },
+  heartButton: {
+    alignItems: "center",
+    height: 24,
+    justifyContent: "center",
+    marginBottom: "auto",
+    marginTop: "auto",
+    width: 24,
   },
   // Image overlay icons
   imageOverlayIcons: {
-    position: 'absolute',
-    top: 50,
+    flexDirection: "row",
+    justifyContent: "center",
     left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
     paddingHorizontal: 20,
+    position: "absolute",
+    right: 0,
+    top: 50,
     zIndex: 100,
-  },
-  overlayIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(58, 59, 60, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  overlayTitle: {
-    alignSelf: 'center',
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  cornerBracketsContainer: {
-    position: 'absolute',
-    top: '25%',
-    left: '10%',
-    right: '10%',
-    bottom: '30%',
-  },
-  cornerBracket: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
-    borderColor: '#fff',
-  },
-  cornerTopLeft: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
-    borderTopLeftRadius: 20,
-  },
-  cornerTopRight: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 3,
-    borderRightWidth: 3,
-    borderTopRightRadius: 20,
-  },
-  cornerBottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 3,
-    borderLeftWidth: 3,
-    borderBottomLeftRadius: 20,
-  },
-  cornerBottomRight: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 3,
-    borderRightWidth: 3,
-    borderBottomRightRadius: 20,
-  },
-  instructionContainer: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(58, 59, 60, 0.5)',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
   },
   instructionCloseButton: {
     marginRight: 12,
   },
+  instructionContainer: {
+    alignItems: "center",
+    backgroundColor: "rgba(58, 59, 60, 0.5)",
+    borderRadius: 12,
+    flexDirection: "row",
+    left: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    position: "absolute",
+    right: 20,
+    top: 60,
+  },
   instructionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#fff',
+    color: "#fff",
     flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  loadingContent: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  loadingSubtitle: {
+    color: "#3a3b3c",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  loadingTitle: {
+    color: "#3a3b3c",
+    fontSize: 18,
+    fontWeight: "500",
+    marginBottom: 4,
+    marginTop: 16,
+  },
+  outfitName: {
+    color: "#3a3b3c",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  overlayIconButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(58, 59, 60, 0.5)",
+    borderRadius: 22,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  overlayTitle: {
+    alignSelf: "center",
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { height: 2, width: 0 },
+    textShadowRadius: 4,
+  },
+  placeholderContainer: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  placeholderText: {
+    color: "#999",
+    fontSize: 16,
+    fontWeight: "500",
+    marginTop: 12,
+  },
+  rating: {
+    color: "#007AFF",
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 12,
+  },
+  recommendationBrand: {
+    color: "#007AFF",
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  recommendationCard: {
+    alignItems: "flex-start",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    elevation: 3,
+    flexDirection: "row",
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  recommendationContent: {
+    flex: 1,
+    justifyContent: "space-between",
+  },
+  recommendationDescription: {
+    color: "#3a3b3c",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  recommendationImage: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    height: 80,
+    width: 80,
+  },
+  recommendationImageContainer: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    justifyContent: "flex-start",
+    marginRight: 12,
+    width: 80,
+  },
+  recommendationName: {
+    color: "#3a3b3c",
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  recommendationPrice: {
+    color: "#3a3b3c",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  recommendationsContainer: {
+    flex: 1,
+    marginTop: 10,
+  },
+  recommendationSeparator: {
+    height: 12,
+  },
+  recommendationsList: {
+    paddingBottom: 20,
+  },
+  recommendationsTitle: {
+    color: "#3a3b3c",
+    fontSize: 18,
+    fontWeight: "500",
+    marginBottom: 15,
+  },
+  resultContent: {
+    flex: 1,
+  },
+  resultHeader: {
+    paddingHorizontal: 0,
+    paddingVertical: 20,
+  },
+  seeMoreText: {
+    color: "#007AFF",
+    fontSize: 14,
+    marginTop: 4,
+  },
+  shortDescription: {
+    color: "#3a3b3c",
+    fontSize: 16,
+    lineHeight: 22,
   },
 });

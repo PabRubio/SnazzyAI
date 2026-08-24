@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../../../supabase/services/supabase';
+import React, { createContext, useContext, useEffect, useState } from "react";
+
+import { supabase } from "../../../supabase/services/supabase";
 
 const NavigationContext = createContext();
 
@@ -24,12 +25,14 @@ export function NavigationProvider({ children }) {
   };
 
   return (
-    <NavigationContext.Provider value={{
-      isLoading,
-      showAppStack,
-      switchToAppStack,
-      switchToAuthStack
-    }}>
+    <NavigationContext.Provider
+      value={{
+        isLoading,
+        showAppStack,
+        switchToAppStack,
+        switchToAuthStack,
+      }}
+    >
       {children}
     </NavigationContext.Provider>
   );
@@ -38,7 +41,7 @@ export function NavigationProvider({ children }) {
 export function useNavigation() {
   const context = useContext(NavigationContext);
   if (!context) {
-    throw new Error('useNavigation must be used within a NavigationProvider');
+    throw new Error("useNavigation must be used within a NavigationProvider");
   }
   return context;
 }

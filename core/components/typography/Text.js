@@ -1,22 +1,18 @@
-import React from 'react';
-import { Text as RNText } from 'react-native';
-import { StyleSheet } from 'react-native';
+import React from "react";
+import { Text as RNText, StyleSheet } from "react-native";
 
 const getFontFamily = (weight) => {
-  if (weight === 'bold' || weight === '700') {
-    return 'DMSans_700Bold';
+  if (weight === "bold" || weight === "700") {
+    return "DMSans_700Bold";
   }
-  return 'DMSans_500Medium';
+  return "DMSans_500Medium";
 };
 
-export default function Text({ style, children, ...props }) {
+export default function Text({ children, style, ...props }) {
   const fontFamily = getFontFamily(StyleSheet.flatten(style)?.fontWeight);
 
   return (
-    <RNText
-      {...props}
-      style={[style, { fontFamily, fontWeight: 'normal' }]}
-    >
+    <RNText {...props} style={[style, { fontFamily, fontWeight: "normal" }]}>
       {children}
     </RNText>
   );

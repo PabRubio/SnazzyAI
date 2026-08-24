@@ -3,58 +3,56 @@
 // Utility functions for database and storage operations
 // =====================================================
 
-import { supabase } from './supabase'
-import { decode } from 'base64-arraybuffer'
+import { decode } from "base64-arraybuffer";
+
+import { supabase } from "./supabase";
 
 // =====================================================
 // AUTH PROFILE FUNCTIONS
 // =====================================================
 
 const formatAppleFullName = (fullName) => {
-  if (!fullName) return null
+  if (!fullName) return null;
 
-  const name = [
-    fullName.givenName,
-    fullName.middleName,
-    fullName.familyName,
-  ].filter(Boolean).join(' ').trim()
+  const name = [fullName.givenName, fullName.middleName, fullName.familyName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
-  return name || null
-}
+  return name || null;
+};
 
 export const syncAppleProfileFromCredential = async (credential, user) => {
   try {
-    if (!user?.id) return
+    if (!user?.id) return;
 
-    const name = formatAppleFullName(credential?.fullName)
-    const email = credential?.email || user.email || null
+    const name = formatAppleFullName(credential?.fullName);
+    const email = credential?.email || user.email || null;
 
     if (name) {
       const { error } = await supabase.auth.updateUser({
-        data: { name }
-      })
+        data: { name },
+      });
 
       if (error) {
-        console.error('Failed to update Apple user metadata:', error)
+        console.error("Failed to update Apple user metadata:", error);
       }
     }
 
-    const profileUpdates = { id: user.id }
+    const profileUpdates = { id: user.id };
 
-    if (name) profileUpdates.name = name
-    if (email) profileUpdates.email = email
+    if (name) profileUpdates.name = name;
+    if (email) profileUpdates.email = email;
 
-    if (Object.keys(profileUpdates).length === 1) return
+    if (Object.keys(profileUpdates).length === 1) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert(profileUpdates)
+    const { error } = await supabase.from("profiles").upsert(profileUpdates);
 
-    if (error) throw error
+    if (error) throw error;
   } catch (error) {
-    console.error(error)
+    console.error(error);
   }
-}
+};
 
 // =====================================================
 // STORAGE FUNCTIONS
@@ -67,61 +65,65 @@ export const syncAppleProfileFromCredential = async (credential, user) => {
  * @param {string} fileName - Optional custom filename (auto-generated if not provided)
  * @returns {Promise<{url: string, path: string}>} - Public URL and storage path
  */
-export const uploadPhoto = async (base64Data, bucket = 'outfit-photos', fileName = null) => {
+export const uploadPhoto = async (
+  base64Data,
+  bucket = "outfit-photos",
+  fileName = null,
+) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     // Generate unique filename if not provided
-    const timestamp = Date.now()
-    const filename = fileName || `${timestamp}.jpg`
-    const filePath = `${user.id}/${filename}`
+    const timestamp = Date.now();
+    const filename = fileName || `${timestamp}.jpg`;
+    const filePath = `${user.id}/${filename}`;
 
     // Convert base64 to array buffer
-    const arrayBuffer = decode(base64Data)
+    const arrayBuffer = decode(base64Data);
 
     // Upload to storage
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(filePath, arrayBuffer, {
-        contentType: 'image/jpeg',
-        upsert: false
-      })
+        contentType: "image/jpeg",
+        upsert: false,
+      });
 
-    if (error) throw error
+    if (error) throw error;
 
     // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath)
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
     return {
+      path: filePath,
       url: publicUrl,
-      path: filePath
-    }
+    };
   } catch (error) {
-    console.error('Error uploading photo:', error)
-    throw new Error('Failed to upload photo')
+    console.error("Error uploading photo:", error);
+    throw new Error("Failed to upload photo");
   }
-}
+};
 
 /**
  * Delete a photo from Supabase Storage
  * @param {string} filePath - Storage file path
  * @param {string} bucket - Storage bucket name
  */
-export const deletePhoto = async (filePath, bucket = 'outfit-photos') => {
+export const deletePhoto = async (filePath, bucket = "outfit-photos") => {
   try {
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove([filePath])
+    const { error } = await supabase.storage.from(bucket).remove([filePath]);
 
-    if (error) throw error
+    if (error) throw error;
   } catch (error) {
-    console.error('Error deleting photo:', error)
-    throw new Error('Failed to delete photo')
+    console.error("Error deleting photo:", error);
+    throw new Error("Failed to delete photo");
   }
-}
+};
 
 // =====================================================
 // OUTFIT ANALYSIS FUNCTIONS
@@ -135,30 +137,32 @@ export const deletePhoto = async (filePath, bucket = 'outfit-photos') => {
  */
 export const saveOutfitAnalysis = async (analysisData, photoUrl) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from('outfit_analyses')
+      .from("outfit_analyses")
       .insert({
-        user_id: user.id,
-        photo_url: photoUrl,
+        is_valid_photo: analysisData.isValidPhoto,
         outfit_name: analysisData.outfitName,
-        short_description: analysisData.shortDescription,
+        photo_url: photoUrl,
         rating: analysisData.rating,
-        search_terms: analysisData.searchTerms || '',
-        is_valid_photo: analysisData.isValidPhoto
+        search_terms: analysisData.searchTerms || "",
+        short_description: analysisData.shortDescription,
+        user_id: user.id,
       })
-      .select('id')
-      .single()
+      .select("id")
+      .single();
 
-    if (error) throw error
-    return data.id
+    if (error) throw error;
+    return data.id;
   } catch (error) {
-    console.error('Error saving outfit analysis:', error)
-    throw new Error('Failed to save outfit analysis')
+    console.error("Error saving outfit analysis:", error);
+    throw new Error("Failed to save outfit analysis");
   }
-}
+};
 
 /**
  * Get user's outfit analysis history
@@ -167,23 +171,25 @@ export const saveOutfitAnalysis = async (analysisData, photoUrl) => {
  */
 export const getOutfitHistory = async (limit = 20) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from('outfit_analyses')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+      .from("outfit_analyses")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-    if (error) throw error
-    return data
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Error fetching outfit history:', error)
-    throw new Error('Failed to fetch outfit history')
+    console.error("Error fetching outfit history:", error);
+    throw new Error("Failed to fetch outfit history");
   }
-}
+};
 
 // =====================================================
 // PRODUCT RECOMMENDATION FUNCTIONS
@@ -196,27 +202,27 @@ export const getOutfitHistory = async (limit = 20) => {
  */
 export const saveRecommendations = async (analysisId, recommendations) => {
   try {
-    const recommendationsData = recommendations.map(rec => ({
+    const recommendationsData = recommendations.map((rec) => ({
       analysis_id: analysisId,
-      name: rec.name,
       brand: rec.brand,
+      category: rec.category || "other",
       description: rec.description,
-      price: rec.price,
       image_url: rec.imageUrl,
+      name: rec.name,
+      price: rec.price,
       purchase_url: rec.purchaseUrl,
-      category: rec.category || 'other'
-    }))
+    }));
 
     const { error } = await supabase
-      .from('product_recommendations')
-      .insert(recommendationsData)
+      .from("product_recommendations")
+      .insert(recommendationsData);
 
-    if (error) throw error
+    if (error) throw error;
   } catch (error) {
-    console.error('Error saving recommendations:', error)
-    throw new Error('Failed to save recommendations')
+    console.error("Error saving recommendations:", error);
+    throw new Error("Failed to save recommendations");
   }
-}
+};
 
 /**
  * Get recommendations for a specific analysis
@@ -226,18 +232,18 @@ export const saveRecommendations = async (analysisId, recommendations) => {
 export const getRecommendations = async (analysisId) => {
   try {
     const { data, error } = await supabase
-      .from('product_recommendations')
-      .select('*')
-      .eq('analysis_id', analysisId)
-      .order('created_at', { ascending: true })
+      .from("product_recommendations")
+      .select("*")
+      .eq("analysis_id", analysisId)
+      .order("created_at", { ascending: true });
 
-    if (error) throw error
-    return data
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Error fetching recommendations:', error)
-    throw new Error('Failed to fetch recommendations')
+    console.error("Error fetching recommendations:", error);
+    throw new Error("Failed to fetch recommendations");
   }
-}
+};
 
 // =====================================================
 // FAVORITE PRODUCTS FUNCTIONS
@@ -249,34 +255,36 @@ export const getRecommendations = async (analysisId) => {
  */
 export const addFavorite = async (product) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const favoriteData = {
-      user_id: user.id,
-      recommendation_id: product.recommendation_id || null,
-      name: product.name,
       brand: product.brand,
-      price: product.price || null,
+      category: product.category || "other",
       description: product.description || null,
       image_url: product.imageUrl || product.image_url,
+      name: product.name,
+      price: product.price || null,
       purchase_url: product.purchaseUrl || product.purchase_url,
-      category: product.category || 'other'
-    }
+      recommendation_id: product.recommendation_id || null,
+      user_id: user.id,
+    };
 
     const { data, error } = await supabase
-      .from('favorite_products')
+      .from("favorite_products")
       .insert(favoriteData)
-      .select('id')
-      .single()
+      .select("id")
+      .single();
 
-    if (error) throw error
-    return data.id  // Return the database UUID
+    if (error) throw error;
+    return data.id; // Return the database UUID
   } catch (error) {
-    console.error('Error adding favorite:', error)
-    throw new Error('Failed to add favorite')
+    console.error("Error adding favorite:", error);
+    throw new Error("Failed to add favorite");
   }
-}
+};
 
 /**
  * Remove a product from favorites
@@ -285,16 +293,16 @@ export const addFavorite = async (product) => {
 export const removeFavorite = async (favoriteId) => {
   try {
     const { error } = await supabase
-      .from('favorite_products')
+      .from("favorite_products")
       .delete()
-      .eq('id', favoriteId)
+      .eq("id", favoriteId);
 
-    if (error) throw error
+    if (error) throw error;
   } catch (error) {
-    console.error('Error removing favorite:', error)
-    throw new Error('Failed to remove favorite')
+    console.error("Error removing favorite:", error);
+    throw new Error("Failed to remove favorite");
   }
-}
+};
 
 /**
  * Get user's favorite products
@@ -302,22 +310,24 @@ export const removeFavorite = async (favoriteId) => {
  */
 export const getFavorites = async () => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from('favorite_products')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('favorited_at', { ascending: false })
+      .from("favorite_products")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("favorited_at", { ascending: false });
 
-    if (error) throw error
-    return data
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Error fetching favorites:', error)
-    throw new Error('Failed to fetch favorites')
+    console.error("Error fetching favorites:", error);
+    throw new Error("Failed to fetch favorites");
   }
-}
+};
 
 // =====================================================
 // TRY-ON RESULTS FUNCTIONS
@@ -330,29 +340,35 @@ export const getFavorites = async () => {
  * @param {string} resultImageUrl - Result image URL
  * @returns {Promise<string>} - Try-on result ID
  */
-export const saveTryOnResult = async (originalPhotoUrl, productImageUrl, resultImageUrl) => {
+export const saveTryOnResult = async (
+  originalPhotoUrl,
+  productImageUrl,
+  resultImageUrl,
+) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from('try_on_results')
+      .from("try_on_results")
       .insert({
-        user_id: user.id,
         original_photo_url: originalPhotoUrl,
         product_image_url: productImageUrl,
-        result_image_url: resultImageUrl
+        result_image_url: resultImageUrl,
+        user_id: user.id,
       })
-      .select('id')
-      .single()
+      .select("id")
+      .single();
 
-    if (error) throw error
-    return data.id
+    if (error) throw error;
+    return data.id;
   } catch (error) {
-    console.error('Error saving try-on result:', error)
-    throw new Error('Failed to save try-on result')
+    console.error("Error saving try-on result:", error);
+    throw new Error("Failed to save try-on result");
   }
-}
+};
 
 /**
  * Get user's try-on results history
@@ -361,23 +377,25 @@ export const saveTryOnResult = async (originalPhotoUrl, productImageUrl, resultI
  */
 export const getTryOnHistory = async (limit = 20) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from('try_on_results')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+      .from("try_on_results")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-    if (error) throw error
-    return data
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Error fetching try-on history:', error)
-    throw new Error('Failed to fetch try-on history')
+    console.error("Error fetching try-on history:", error);
+    throw new Error("Failed to fetch try-on history");
   }
-}
+};
 
 // =====================================================
 // PROFILE FUNCTIONS
@@ -389,22 +407,24 @@ export const getTryOnHistory = async (limit = 20) => {
  */
 export const getProfile = async () => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
 
-    if (error) throw error
-    return data
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Error fetching profile:', error)
-    throw new Error('Failed to fetch profile')
+    console.error("Error fetching profile:", error);
+    throw new Error("Failed to fetch profile");
   }
-}
+};
 
 /**
  * Update user profile
@@ -412,29 +432,31 @@ export const getProfile = async () => {
  */
 export const updateProfile = async (profileData) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
     const { error } = await supabase
-      .from('profiles')
+      .from("profiles")
       .update(profileData)
-      .eq('id', user.id)
+      .eq("id", user.id);
 
-    if (error) throw error
+    if (error) throw error;
   } catch (error) {
-    console.error('Error updating profile:', error)
-    throw new Error('Failed to update profile')
+    console.error("Error updating profile:", error);
+    throw new Error("Failed to update profile");
   }
-}
+};
 
 /**
  * Delete the authenticated user's account and associated data.
  */
 export const deleteAccount = async () => {
-  const { data, error } = await supabase.functions.invoke('delete-account', {
-    method: 'POST'
-  })
+  const { data, error } = await supabase.functions.invoke("delete-account", {
+    method: "POST",
+  });
 
-  if (error) throw error
-  return data
-}
+  if (error) throw error;
+  return data;
+};

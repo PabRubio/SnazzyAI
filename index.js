@@ -1,8 +1,12 @@
-import { registerRootComponent } from 'expo';
-import { View, ActivityIndicator } from 'react-native';
-import { useFonts, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
+import {
+  DMSans_500Medium,
+  DMSans_700Bold,
+  useFonts,
+} from "@expo-google-fonts/dm-sans";
+import { registerRootComponent } from "expo";
+import { ActivityIndicator, View } from "react-native";
 
-import AppNavigator from './core/components/navigation/Navigator';
+import AppNavigator from "./core/components/navigation/Navigator";
 
 function Navigator() {
   const [fontsLoaded] = useFonts({
@@ -12,7 +16,7 @@ function Navigator() {
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ alignItems: "center", flex: 1, justifyContent: "center" }}>
         <ActivityIndicator size="large" />
       </View>
     );

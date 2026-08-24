@@ -1,29 +1,40 @@
-import React from 'react';
-import { useState } from 'react';
-import Text from '../components/typography/Text';
-import TextInput from '../components/typography/TextInput';
-import { StyleSheet, View, TouchableOpacity, Keyboard } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useOnboarding } from './OnboardingContext';
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import React, { useState } from "react";
+import { Keyboard, StyleSheet, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import Text from "../components/typography/Text";
+import TextInput from "../components/typography/TextInput";
+import { useOnboarding } from "./OnboardingContext";
 
 const TOTAL_STEPS = 15;
 const CURRENT_STEP = 12;
 
-const POPULAR_BRANDS = ['Nike', 'Adidas', 'Zara', 'Uniqlo', 'H&M', 'Mango', 'Calvin Klein', 'Ralph Lauren'];
+const POPULAR_BRANDS = [
+  "Nike",
+  "Adidas",
+  "Zara",
+  "Uniqlo",
+  "H&M",
+  "Mango",
+  "Calvin Klein",
+  "Ralph Lauren",
+];
 
 const parseFavoriteText = (text) =>
   text
-    .split(',')
-    .map(item => item.trim())
-    .filter(item => item.length > 0);
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 
 export default function FavoriteBrandsScreen({ navigation }) {
   const { data, updateData } = useOnboarding();
   const insets = useSafeAreaInsets();
 
-  const [brandsText, setBrandsText] = useState((data.favoriteBrands || []).join(', '));
+  const [brandsText, setBrandsText] = useState(
+    (data.favoriteBrands || []).join(", "),
+  );
   const selectedBrands = parseFavoriteText(brandsText);
 
   const updateBrandsText = (text) => {
@@ -34,7 +45,7 @@ export default function FavoriteBrandsScreen({ navigation }) {
   const handleContinue = () => {
     Keyboard.dismiss(); // Dismiss keyboard
     updateData({ favoriteBrands: selectedBrands });
-    navigation.navigate('OnboardingQuestionnaire3');
+    navigation.navigate("OnboardingQuestionnaire3");
   };
 
   const handleBack = () => {
@@ -43,9 +54,9 @@ export default function FavoriteBrandsScreen({ navigation }) {
 
   const toggleBrand = (brand) => {
     if (selectedBrands.includes(brand)) {
-      updateBrandsText(selectedBrands.filter(b => b !== brand).join(', '));
+      updateBrandsText(selectedBrands.filter((b) => b !== brand).join(", "));
     } else {
-      updateBrandsText([...selectedBrands, brand].join(', '));
+      updateBrandsText([...selectedBrands, brand].join(", "));
     }
   };
 
@@ -58,88 +69,93 @@ export default function FavoriteBrandsScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {/* Header with back arrow and progress bar */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={28} color="#3a3b3c" />
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={handleBack}
+          style={styles.backButton}
+        >
+          <Ionicons color="#3a3b3c" name="chevron-back" size={28} />
+        </TouchableOpacity>
 
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-            </View>
-          </View>
-        </View>
-
-        {/* Main content */}
-        <View style={styles.content}>
-          <Text style={styles.title}>Favorite brands?</Text>
-
-          <View style={styles.inputGroup}>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Nike, Adidas, Zara"
-              placeholderTextColor="#999"
-              value={brandsText}
-
-              onChangeText={(text) => {
-                let filtered = text.replace(/[^a-zA-Z\s,]/g, '');
-                filtered = filtered.replace(/^[,\s]+/, '');
-                filtered = filtered.replace(/\s+/g, ' ');
-                filtered = filtered.replace(/,+/g, ',');
-                filtered = filtered.replace(/\s+,/g, ',');
-                filtered = filtered.replace(/,(?!\s)/g, ', ');
-                updateBrandsText(filtered);
-              }}
-              onBlur={() => updateBrandsText(brandsText.replace(/[,\s]+$/, ''))}
-              multiline
-              numberOfLines={3}
-              autoCapitalize="words"
-              textAlignVertical="top"
-              blurOnSubmit={true}
-              maxLength={100}
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarTrack}>
+            <View
+              style={[styles.progressBarFill, { width: `${progress * 100}%` }]}
             />
           </View>
+        </View>
+      </View>
 
-          <Text style={styles.popularLabel}>Popular brands</Text>
-          <View style={styles.brandsContainer}>
-            {POPULAR_BRANDS.map((brand) => (
-              <TouchableOpacity
-                key={brand}
+      {/* Main content */}
+      <View style={styles.content}>
+        <Text style={styles.title}>Favorite brands?</Text>
+
+        <View style={styles.inputGroup}>
+          <TextInput
+            autoCapitalize="words"
+            blurOnSubmit={true}
+            maxLength={100}
+            multiline
+
+            numberOfLines={3}
+            onBlur={() => updateBrandsText(brandsText.replace(/[,\s]+$/, ""))}
+            onChangeText={(text) => {
+              let filtered = text.replace(/[^a-zA-Z\s,]/g, "");
+              filtered = filtered.replace(/^[,\s]+/, "");
+              filtered = filtered.replace(/\s+/g, " ");
+              filtered = filtered.replace(/,+/g, ",");
+              filtered = filtered.replace(/\s+,/g, ",");
+              filtered = filtered.replace(/,(?!\s)/g, ", ");
+              updateBrandsText(filtered);
+            }}
+            placeholder="e.g., Nike, Adidas, Zara"
+            placeholderTextColor="#999"
+            style={styles.input}
+            textAlignVertical="top"
+            value={brandsText}
+          />
+        </View>
+
+        <Text style={styles.popularLabel}>Popular brands</Text>
+        <View style={styles.brandsContainer}>
+          {POPULAR_BRANDS.map((brand) => (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              key={brand}
+              onPress={() => toggleBrand(brand)}
+              style={[
+                styles.brandChip,
+                isBrandSelected(brand) && styles.brandChipSelected,
+              ]}
+            >
+              <Text
                 style={[
-                  styles.brandChip,
-                  isBrandSelected(brand) && styles.brandChipSelected,
+                  styles.brandChipText,
+                  isBrandSelected(brand) && styles.brandChipTextSelected,
                 ]}
-                onPress={() => toggleBrand(brand)}
-                activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.brandChipText,
-                    isBrandSelected(brand) && styles.brandChipTextSelected,
-                  ]}
-                >
-                  {brand}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                {brand}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+      </View>
 
-        {/* Bottom bar with Continue button */}
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-          <TouchableOpacity
-            style={[styles.continueButton, !selectedBrands.length && styles.continueButtonDisabled]}
-            disabled={!selectedBrands.length}
-            onPress={handleContinue}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.continueButtonText}>Continue</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Bottom bar with Continue button */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          disabled={!selectedBrands.length}
+          onPress={handleContinue}
+          style={[
+            styles.continueButton,
+            !selectedBrands.length && styles.continueButtonDisabled,
+          ]}
+        >
+          <Text style={styles.continueButtonText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
 
       <StatusBar style="dark" />
     </View>
@@ -147,129 +163,129 @@ export default function FavoriteBrandsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
   backButton: {
-    width: 44,
-    height: 44,
+    alignItems: "center",
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 44,
+    justifyContent: "center",
     marginRight: 16,
+    width: 44,
   },
-  progressBarContainer: {
+  bottomBar: {
+    backgroundColor: "#fff",
+    borderTopColor: "#f0f0f0",
+    borderTopWidth: 1,
+    elevation: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { height: -2, width: 0 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  brandChip: {
+    backgroundColor: "#f5f5f5",
+    borderColor: "#f0f0f0",
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  brandChipSelected: {
+    backgroundColor: "#007AFF",
+    borderColor: "#007AFF",
+  },
+  brandChipText: {
+    color: "#3a3b3c",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  brandChipTextSelected: {
+    color: "#fff",
+  },
+  brandsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  container: {
+    backgroundColor: "#fff",
     flex: 1,
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 4,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 30,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#3a3b3c',
-    letterSpacing: 0.5,
-    marginBottom: 24,
+  continueButton: {
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    elevation: 3,
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#999",
+    opacity: 0.5,
+  },
+  continueButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+  },
+  input: {
+    backgroundColor: "#f5f5f5",
+    borderColor: "#f0f0f0",
+    borderRadius: 8,
+    borderWidth: 1,
+    color: "#3a3b3c",
+    fontSize: 16,
+    minHeight: 80,
+    padding: 12,
+    paddingTop: 12,
   },
   inputGroup: {
     marginBottom: 20,
   },
-  input: {
-    fontSize: 16,
-    color: '#3a3b3c',
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#f5f5f5',
-    minHeight: 80,
-    paddingTop: 12,
-  },
   popularLabel: {
+    color: "#3a3b3c",
     fontSize: 14,
-    fontWeight: '500',
-    color: '#3a3b3c',
+    fontWeight: "500",
     marginBottom: 12,
   },
-  brandsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  progressBarContainer: {
+    flex: 1,
+    justifyContent: "center",
   },
-  brandChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderColor: '#f0f0f0',
-    borderWidth: 1,
+  progressBarFill: {
+    backgroundColor: "#007AFF",
+    borderRadius: 2,
+    height: "100%",
   },
-  brandChipSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+  progressBarTrack: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 2,
+    height: 4,
+    overflow: "hidden",
   },
-  brandChipText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#3a3b3c',
-  },
-  brandChipTextSelected: {
-    color: '#fff',
-  },
-  bottomBar: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  continueButtonDisabled: {
-    backgroundColor: '#999',
-    opacity: 0.5,
-  },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+  title: {
+    color: "#3a3b3c",
+    fontSize: 32,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+    marginBottom: 24,
   },
 });

@@ -1,13 +1,14 @@
-import { useEffect, useRef } from 'react';
-import { useSuperwall, useUser } from 'expo-superwall';
-import { supabase } from '../../supabase/services/supabase';
+import { useSuperwall, useUser } from "expo-superwall";
+import { useEffect, useRef } from "react";
+
+import { supabase } from "../../supabase/services/supabase";
 
 export default function SuperwallIdentity() {
-  const { identify, update, signOut } = useUser();
+  const { identify, signOut, update } = useUser();
   const isConfigured = useSuperwall((state) => state.isConfigured);
-  const superwallRef = useRef({ identify, update, signOut });
+  const superwallRef = useRef({ identify, signOut, update });
 
-  superwallRef.current = { identify, update, signOut };
+  superwallRef.current = { identify, signOut, update };
 
   useEffect(() => {
     if (!isConfigured) return;
@@ -21,34 +22,41 @@ export default function SuperwallIdentity() {
       await superwallRef.current.identify(user.id);
 
       const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('name, email')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("name, email")
+        .eq("id", user.id)
         .maybeSingle();
 
       if (error) throw error;
       if (!profile) return;
 
       await superwallRef.current.update({
-        name: profile.name,
         email: profile.email,
+        name: profile.name,
       });
     };
 
-    supabase.auth.getSession()
+    supabase.auth
+      .getSession()
       .then(({ data: { session }, error }) => {
         if (error) throw error;
         return syncUser(session?.user);
       })
-      .catch((error) => console.error('Failed to sync Superwall user:', error));
+      .catch((error) => console.error("Failed to sync Superwall user:", error));
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        void superwallRef.current.signOut()
-          .catch((error) => console.error('Failed to sign out of Superwall:', error));
-      } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        void syncUser(session?.user)
-          .catch((error) => console.error('Failed to sync Superwall user:', error));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        void superwallRef.current
+          .signOut()
+          .catch((error) =>
+            console.error("Failed to sign out of Superwall:", error),
+          );
+      } else if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        void syncUser(session?.user).catch((error) =>
+          console.error("Failed to sync Superwall user:", error),
+        );
       }
     });
 
