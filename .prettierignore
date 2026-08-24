@@ -1,0 +1,11 @@
+supabase/functions/
+android/
+ios/
+node_modules/
+.expo/
+.cache/
+dist/
+build/
+web-build/
+coverage/
+generated/
