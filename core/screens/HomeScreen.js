@@ -16,6 +16,10 @@ import { useNavigation } from '../components/navigation/NavigationContext';
 import { getProfile, updateProfile, addFavorite, removeFavorite, getOutfitHistory, deleteAccount } from '../../supabase/services/supabaseHelpers';
 
 const { width, height } = Dimensions.get('window');
+const getDiscoverProductKey = (item, index) => item.purchaseUrl || `${item.name}-${item.brand}-${index}`;
+const INITIAL_DISCOVER_STATE = {
+  prompt: '', products: [], status: 'idle', validationError: ''
+};
 
 // Conversion helpers
 const cmToFt = (cm) => {
@@ -43,6 +47,7 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
   const deletingAccountRef = useRef(false);
+  const discoverRequestRef = useRef({ id: 0, controller: null });
   const outfitPhotoHeadersRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [favorites, setFavorites] = useState([]);
@@ -51,11 +56,13 @@ export default function HomeScreen({ navigation }) {
   const [favoriteItems, setFavoriteItems] = useState(new Map());
   const [lookbookStatus, setLookbookStatus] = useState('loading');
   const [favoritesStatus, setFavoritesStatus] = useState('loading');
+  const [settingsStatus, setSettingsStatus] = useState('loading');
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [activeTab, setActiveTab] = useState('home');
-  const { subscriptionStatus, update } = useUser();
+  const [discover, setDiscover] = useState(INITIAL_DISCOVER_STATE);
+  const { subscriptionStatus, getEntitlements, update } = useUser();
   const { switchToAuthStack } = useNavigation();
-  const { registerPlacement } = usePlacement({
+  const { registerPlacement: registerCameraPlacement } = usePlacement({
     onDismiss: (info, result) => {
       if (['purchased', 'restored'].includes(result?.type)) {
         navigation.navigate('Camera');
@@ -66,6 +73,11 @@ export default function HomeScreen({ navigation }) {
       Alert.alert('Error', 'Failed to show paywall. Please try again.');
     }
   });
+  const canSearchDiscover = Platform.OS === 'android' || subscriptionStatus?.status === 'ACTIVE';
+
+  useEffect(() => {
+    if (!canSearchDiscover) Keyboard.dismiss();
+  }, [canSearchDiscover]);
 
   // Settings state - Personal Information
   const [name, setName] = useState('');
@@ -104,11 +116,14 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   const loadProfileData = async () => {
+    setSettingsStatus('loading');
     try {
       // Check if user is still authenticated before loading profile
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
       if (!user) {
         // User is not authenticated (likely signing out), skip loading
+        setSettingsStatus('empty');
         return;
       }
 
@@ -146,14 +161,13 @@ export default function HomeScreen({ navigation }) {
         const { status } = await Notifications.getPermissionsAsync();
         const hasPermission = status === 'granted';
         setPushNotifications(hasPermission && (profile.push_notifications ?? true));
+        setSettingsStatus('ready');
+      } else {
+        setSettingsStatus('empty');
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-      // Only show alert if user is still authenticated (not signing out)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        Alert.alert('Error', 'Failed to load profile data');
-      }
+      setSettingsStatus('error');
     }
   };
 
@@ -642,7 +656,79 @@ export default function HomeScreen({ navigation }) {
     await loadProfileData();
   };
 
+  const resetDiscover = () => {
+    discoverRequestRef.current.id += 1;
+    discoverRequestRef.current.controller?.abort();
+    discoverRequestRef.current.controller = null;
+    setDiscover(INITIAL_DISCOVER_STATE);
+    Keyboard.dismiss();
+  };
+
+  const runDiscoverSearch = async (searchPrompt) => {
+    discoverRequestRef.current.controller?.abort();
+
+    const controller = new AbortController();
+    const requestId = discoverRequestRef.current.id + 1;
+    discoverRequestRef.current = { id: requestId, controller };
+    setDiscover(current => ({ ...current, products: [], status: 'loading' }));
+
+    try {
+      let userProfile = null;
+      try {
+        userProfile = await getProfile();
+      } catch {
+        // Match CameraScreen: search still works with default preferences.
+      }
+
+      if (discoverRequestRef.current.id !== requestId) return;
+
+      const { data, error } = await supabase.functions.invoke('discover-products', {
+        body: { prompt: searchPrompt, userProfile },
+        signal: controller.signal,
+      });
+
+      if (error) throw error;
+      if (!Array.isArray(data?.products)) throw new Error('Invalid product search response');
+      if (discoverRequestRef.current.id !== requestId) return;
+
+      setDiscover(current => ({
+        ...current,
+        products: data.products.slice(0, 10),
+        status: 'success',
+      }));
+    } catch (error) {
+      if (controller.signal.aborted || discoverRequestRef.current.id !== requestId) return;
+      setDiscover(current => ({ ...current, status: 'error' }));
+    } finally {
+      if (discoverRequestRef.current.id === requestId) {
+        discoverRequestRef.current.controller = null;
+      }
+    }
+  };
+
+  const handleDiscoverSubmit = () => {
+    Keyboard.dismiss();
+    if (!canSearchDiscover) return;
+
+    const trimmedPrompt = discover.prompt.trim();
+    if (!trimmedPrompt) {
+      setDiscover(current => ({ ...current, validationError: 'Enter a clothing product to search for.' }));
+      return;
+    }
+
+    setDiscover(current => ({
+      ...current,
+      prompt: trimmedPrompt,
+      validationError: '',
+    }));
+    runDiscoverSearch(trimmedPrompt);
+  };
+
   const handleTabPress = async (tabName) => {
+    if (activeTab === 'discover' && tabName !== 'discover' && tabName !== 'add') {
+      resetDiscover();
+    }
+
     // If switching to home tab, reload favorites
     if (tabName === 'home' && activeTab !== 'home') {
       loadFavorites();
@@ -657,6 +743,10 @@ export default function HomeScreen({ navigation }) {
       loadOutfitHistory();
     }
 
+    if (tabName === 'settings' && activeTab !== 'settings' && settingsStatus !== 'loading') {
+      loadProfileData();
+    }
+
     if (tabName === 'add') {
       const requestAccessPaywall = () => {
         if (subscriptionStatus?.status === 'ACTIVE') {
@@ -669,7 +759,7 @@ export default function HomeScreen({ navigation }) {
           return;
         }
 
-        return registerPlacement({
+        return registerCameraPlacement({
           placement: 'campaign_trigger'
         });
       };
@@ -700,17 +790,17 @@ export default function HomeScreen({ navigation }) {
   };
 
   // Handle toggling favorite (like CameraScreen)
-  const handleToggleFavorite = async (item) => {
-    const isFavorited = favoriteItems.has(item.id);
-    const dbUuid = favoriteItems.get(item.id);
+  const handleToggleFavorite = async (item, itemId = item.id) => {
+    const isFavorited = favoriteItems.has(itemId);
+    const dbUuid = favoriteItems.get(itemId);
 
     // Optimistically update UI
     setFavoriteItems(prevFavorites => {
       const newFavorites = new Map(prevFavorites);
       if (isFavorited) {
-        newFavorites.delete(item.id);
+        newFavorites.delete(itemId);
       } else {
-        newFavorites.set(item.id, 'pending'); // Temporary until we get the UUID
+        newFavorites.set(itemId, 'pending'); // Temporary until we get the UUID
       }
       return newFavorites;
     });
@@ -725,15 +815,15 @@ export default function HomeScreen({ navigation }) {
           name: item.name,
           brand: item.brand,
           price: item.price,
-          imageUrl: item.image_url,
-          purchaseUrl: item.purchase_url,
+          imageUrl: item.imageUrl || item.image_url,
+          purchaseUrl: item.purchaseUrl || item.purchase_url,
           description: item.description,
           category: item.category || 'other'
         });
         // Update with actual database UUID
         setFavoriteItems(prevFavorites => {
           const newFavorites = new Map(prevFavorites);
-          newFavorites.set(item.id, newDbUuid);
+          newFavorites.set(itemId, newDbUuid);
           return newFavorites;
         });
       }
@@ -743,9 +833,9 @@ export default function HomeScreen({ navigation }) {
       setFavoriteItems(prevFavorites => {
         const newFavorites = new Map(prevFavorites);
         if (isFavorited) {
-          newFavorites.set(item.id, dbUuid); // Restore with original UUID
+          newFavorites.set(itemId, dbUuid); // Restore with original UUID
         } else {
-          newFavorites.delete(item.id);
+          newFavorites.delete(itemId);
         }
         return newFavorites;
       });
@@ -768,6 +858,7 @@ export default function HomeScreen({ navigation }) {
       pantsScrollRef.current?.scrollTo({ x: 0, animated: false });
       shoesScrollRef.current?.scrollTo({ x: 0, animated: false });
       otherScrollRef.current?.scrollTo({ x: 0, animated: false });
+      if (activeTab === 'discover') resetDiscover();
     });
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
@@ -784,6 +875,11 @@ export default function HomeScreen({ navigation }) {
     return () => {
       unsubscribeBlur();
       unsubscribeFocus();
+      if (activeTab === 'discover') {
+        discoverRequestRef.current.id += 1;
+        discoverRequestRef.current.controller?.abort();
+        discoverRequestRef.current.controller = null;
+      }
     };
   }, [navigation, activeTab]);
 
@@ -794,7 +890,12 @@ export default function HomeScreen({ navigation }) {
       style={styles.container}
     >
       {/* Main content area - currently empty */}
-      <ScrollView ref={scrollViewRef} style={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {activeTab === 'home' && (
           <View>
             <View style={styles.logoContainer}>
@@ -820,7 +921,7 @@ export default function HomeScreen({ navigation }) {
               ) : favorites.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Ionicons name="heart-outline" size={48} color="#ccc" />
-                  <Text style={styles.emptyText}>No favorites yet :(</Text>
+                  <Text style={styles.emptyText}>No favorites yet</Text>
                 </View>
               ) : favoritesStatus === 'error' ? (
                 <View style={styles.emptyContainer}>
@@ -1061,7 +1162,7 @@ export default function HomeScreen({ navigation }) {
               </View>
             ) : outfitHistory.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="book-outline" size={48} color="#ccc" />
+                <Ionicons name="layers-outline" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>No saved looks yet</Text>
               </View>
             ) : lookbookStatus === 'error' ? (
@@ -1103,6 +1204,113 @@ export default function HomeScreen({ navigation }) {
             )}
           </View>
         )}
+        {activeTab === 'discover' && (
+          <View style={styles.settingsContainer}>
+            <View style={[styles.settingsHeader, styles.lookbookHeader]}>
+              <Text style={styles.settingsTitle}>Discover</Text>
+            </View>
+
+            <View style={styles.discoverSearchCard}>
+              <View style={styles.discoverSearchRow}>
+                <View style={styles.discoverInputContainer}>
+                  <TextInput
+                    value={discover.prompt}
+                    onChangeText={(value) => {
+                      setDiscover(current => ({ ...current, prompt: value, validationError: '' }));
+                    }}
+                    onSubmitEditing={handleDiscoverSubmit}
+                    placeholder="Search clothing products"
+                    placeholderTextColor="#999"
+                    returnKeyType="search"
+                    multiline={false}
+                    numberOfLines={1}
+                    editable={canSearchDiscover}
+                    style={[styles.settingsInput, styles.discoverSearchInput]}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  disabled={discover.status === 'loading' || !canSearchDiscover}
+                  onPress={handleDiscoverSubmit}
+                  style={[
+                    styles.discoverSearchButton,
+                    discover.status === 'loading' && styles.discoverButtonDisabled,
+                    !canSearchDiscover && styles.discoverButtonLocked,
+                  ]}
+                >
+                  {discover.status === 'loading' ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="search" size={21} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              {!!discover.validationError && (
+                <Text style={styles.discoverValidationText}>{discover.validationError}</Text>
+              )}
+              <Text style={styles.discoverSearchTipText}>
+                💡 Try: brand + gender + color + item{`\n`}
+                (Ralph Lauren men's navy quarter zip)
+              </Text>
+            </View>
+
+            {discover.status === 'error' && (
+              <View style={[styles.emptyContainer, styles.discoverStateContainer]}>
+                <Ionicons name="alert-circle-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>Couldn't load discovery</Text>
+              </View>
+            )}
+
+            {discover.status === 'success' && discover.products.length === 0 && (
+              <View style={[styles.emptyContainer, styles.discoverStateContainer]}>
+                <Ionicons name="basket-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No products found</Text>
+              </View>
+            )}
+
+            {discover.products.map((item, index) => {
+              const itemId = getDiscoverProductKey(item, index);
+              const isFavorited = favoriteItems.has(itemId);
+              return (
+                <TouchableOpacity
+                  key={`${itemId}-${index}`}
+                  activeOpacity={0.8}
+                  onPress={() => handleOpenLink(item.purchaseUrl, item.name)}
+                  style={[styles.recommendationCard, styles.discoverProductCard]}
+                >
+                  <View style={styles.recommendationImageContainer}>
+                    <Image
+                      source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
+                      resizeMode="cover"
+                      style={styles.recommendationImage}
+                    />
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => handleToggleFavorite(item, itemId)}
+                      style={styles.heartButton}
+                    >
+                      <Ionicons
+                        name={isFavorited ? 'heart' : 'heart-outline'}
+                        size={24}
+                        color={isFavorited ? '#FF3B30' : '#999'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.recommendationContent}>
+                    <Text style={styles.recommendationName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.recommendationBrand} numberOfLines={1}>{item.brand}</Text>
+                    <Text style={styles.recommendationDescription} numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                    <Text style={styles.recommendationPrice}>{item.price}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+
+          </View>
+        )}
         {activeTab === 'settings' && (
           <View style={styles.settingsContainer}>
             <View style={styles.settingsHeader}>
@@ -1115,6 +1323,23 @@ export default function HomeScreen({ navigation }) {
                 <Ionicons name="log-out-outline" size={24} color="#3a3b3c" />
               </TouchableOpacity>
             </View>
+
+            {settingsStatus === 'loading' ? (
+              <View style={styles.emptyContainer}>
+                <ActivityIndicator size="small" color="#007AFF" />
+              </View>
+            ) : settingsStatus === 'empty' ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="person-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No profile ID found</Text>
+              </View>
+            ) : settingsStatus === 'error' ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="alert-circle-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>Couldn't load settings</Text>
+              </View>
+            ) : (
+              <>
 
             {/* Personal Information Section */}
             <View style={styles.settingsSection}>
@@ -1628,12 +1853,14 @@ export default function HomeScreen({ navigation }) {
 
               <Text style={styles.versionFooter}>Version 1.0.2</Text>
             </View>
+              </>
+            )}
           </View>
         )}
       </ScrollView>
 
       {/* Bottom Navigation Bar */}
-      <View style={[styles.navigationBar, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.navigationBar, { paddingBottom: insets.bottom + 12 }]}>
         {/* Home Icon - Left */}
         <TouchableOpacity
           onPress={() => handleTabPress('home')}
@@ -1647,10 +1874,18 @@ export default function HomeScreen({ navigation }) {
           />
         </TouchableOpacity>
 
-        {/* Search Placeholder */}
-        <View style={styles.navItem}>
-          <Ionicons name="search" size={28} color="#999" />
-        </View>
+        {/* Discover Icon */}
+        <TouchableOpacity
+          onPress={() => handleTabPress('discover')}
+          style={styles.navItem}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            color={activeTab === 'discover' ? '#007AFF' : '#999'}
+            name="search"
+            size={28}
+          />
+        </TouchableOpacity>
 
         {/* Plus Icon - Center */}
         <TouchableOpacity
@@ -1905,6 +2140,61 @@ const styles = StyleSheet.create({
   lookbookDate: {
     color: '#999',
     fontSize: 13,
+  },
+  discoverSearchCard: {
+    marginBottom: 22,
+  },
+  discoverSearchRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  discoverInputContainer: {
+    flex: 1,
+  },
+  discoverSearchInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    borderColor: 'rgba(58, 59, 60, 0.08)',
+    borderRadius: 23,
+    fontSize: 14,
+    height: 46,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+    width: '100%',
+  },
+  discoverSearchButton: {
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    borderRadius: 23,
+    height: 46,
+    justifyContent: 'center',
+    marginLeft: 10,
+    width: 46,
+  },
+  discoverButtonDisabled: {
+    opacity: 0.6,
+  },
+  discoverButtonLocked: {
+    backgroundColor: '#999',
+    opacity: 0.5,
+  },
+  discoverSearchTipText: {
+    color: '#999',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  discoverValidationText: {
+    color: '#FF3B30',
+    fontSize: 13,
+    marginTop: 8,
+  },
+  discoverStateContainer: {
+    minHeight: 210,
+  },
+  discoverProductCard: {
+    marginBottom: 18,
+    width: '100%',
   },
   // Settings styles
   settingsContainer: {
