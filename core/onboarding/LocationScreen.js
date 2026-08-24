@@ -32,8 +32,9 @@ export default function LocationScreen({ navigation }) {
       let hasPermission = existingStatus === "granted";
 
       if (!hasPermission) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        hasPermission = status === "granted";
+        const { status: requestedStatus } =
+          await Location.requestForegroundPermissionsAsync();
+        hasPermission = requestedStatus === "granted";
       }
 
       if (!hasPermission) {
@@ -76,7 +77,6 @@ export default function LocationScreen({ navigation }) {
         updateData({ location: locationString });
       }
     } catch (error) {
-      console.error("Error getting location:", error);
       if (error.message === "timeout") {
         Alert.alert(
           "Timeout",
@@ -102,7 +102,6 @@ export default function LocationScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -121,7 +120,6 @@ export default function LocationScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>
           {"Where are you living?" + " (optional)"}
@@ -151,7 +149,6 @@ export default function LocationScreen({ navigation }) {
         )}
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}

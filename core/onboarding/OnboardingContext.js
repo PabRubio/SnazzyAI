@@ -24,8 +24,8 @@ const INITIAL_STATE = {
 export function OnboardingProvider({ children }) {
   const [data, setData] = useState(INITIAL_STATE);
 
-  const updateData = (newData) => {
-    setData((prev) => ({ ...prev, ...newData }));
+  const updateData = (updates) => {
+    setData((previousData) => ({ ...previousData, ...updates }));
   };
 
   const resetData = () => {

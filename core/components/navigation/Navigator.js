@@ -25,7 +25,6 @@ export default function AppNavigator() {
 function AppNavigatorContent() {
   const { isLoading, showAppStack } = useNavigation();
 
-  // Show loading spinner while checking auth state
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -34,14 +33,14 @@ function AppNavigatorContent() {
     );
   }
 
-  const superwallApiKey = Constants.expoConfig?.extra?.superwallApiKey;
-  const superwallApiKey2 = Constants.expoConfig?.extra?.superwallIosKey;
+  const superwallAndroidApiKey = Constants.expoConfig?.extra?.superwallApiKey;
+  const superwallIosApiKey = Constants.expoConfig?.extra?.superwallIosKey;
 
   return (
     <SuperwallProvider
       apiKeys={{
-        android: superwallApiKey,
-        ios: superwallApiKey2,
+        android: superwallAndroidApiKey,
+        ios: superwallIosApiKey,
       }}
     >
       <SuperwallIdentity />
@@ -56,13 +55,11 @@ function AppNavigatorContent() {
           }}
         >
           {!showAppStack ? (
-            // Auth Stack - User not logged in
             <>
               <Stack.Screen component={AuthScreen} name="Auth" />
               <Stack.Screen component={Onboarding} name="Onboarding" />
             </>
           ) : (
-            // App Stack - User logged in
             <>
               <Stack.Screen component={HomeScreen} name="Home" />
               <Stack.Screen

@@ -7,11 +7,9 @@ export default function PaywallScreen({ navigation }) {
 
   const { registerPlacement } = usePlacement({
     onDismiss: () => {
-      // Go back to Auth when paywall is dismissed
       navigation.navigate("Auth");
     },
-    onError: (error) => {
-      console.error("Paywall error:", error);
+    onError: (_error) => {
       Alert.alert("Error", "Failed to show paywall. Please try again.");
       navigation.navigate("Auth");
     },
@@ -22,8 +20,7 @@ export default function PaywallScreen({ navigation }) {
       await registerPlacement({
         placement: "campaign_trigger",
       });
-    } catch (error) {
-      console.error("Failed to show paywall:", error);
+    } catch {
       Alert.alert("Error", "Something went wrong. Please try again.");
       navigation.navigate("Auth");
     }

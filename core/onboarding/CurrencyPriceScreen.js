@@ -39,11 +39,15 @@ const getCurrencySymbol = (currency) => {
 export default function CurrencyPriceScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { data, updateData } = useOnboarding();
+  const hasPriceRangeInputs = Boolean(
+    data.currency && data.priceMin && data.priceMax,
+  );
+  const progress = CURRENT_STEP / TOTAL_STEPS;
 
   const handleContinue = () => {
     Keyboard.dismiss();
 
-    if (data.currency && data.priceMin && data.priceMax) {
+    if (hasPriceRangeInputs) {
       const minPrice = parseInt(data.priceMin);
       const maxPrice = parseInt(data.priceMax);
 
@@ -64,11 +68,8 @@ export default function CurrencyPriceScreen({ navigation }) {
     navigation.goBack();
   };
 
-  const progress = CURRENT_STEP / TOTAL_STEPS;
-
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -87,7 +88,6 @@ export default function CurrencyPriceScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>Shopping preferences</Text>
 
@@ -160,16 +160,14 @@ export default function CurrencyPriceScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          disabled={!data.currency || !data.priceMin || !data.priceMax}
+          disabled={!hasPriceRangeInputs}
           onPress={handleContinue}
           style={[
             styles.continueButton,
-            (!data.currency || !data.priceMin || !data.priceMax) &&
-              styles.continueButtonDisabled,
+            !hasPriceRangeInputs && styles.continueButtonDisabled,
           ]}
         >
           <Text style={styles.continueButtonText}>Continue</Text>

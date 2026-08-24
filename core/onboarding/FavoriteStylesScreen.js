@@ -27,6 +27,8 @@ export default function FavoriteStylesScreen({ navigation }) {
     (data.favoriteStyles || []).join(", "),
   );
   const selectedStyles = parseFavoriteText(stylesText);
+  const hasSelectedStyles = selectedStyles.length > 0;
+  const progress = CURRENT_STEP / TOTAL_STEPS;
 
   const updateStylesText = (text) => {
     updateData({ favoriteStyles: parseFavoriteText(text) });
@@ -34,7 +36,7 @@ export default function FavoriteStylesScreen({ navigation }) {
   };
 
   const handleContinue = () => {
-    Keyboard.dismiss(); // Dismiss keyboard
+    Keyboard.dismiss();
     updateData({ favoriteStyles: selectedStyles });
     navigation.navigate("OnboardingFavoriteBrands");
   };
@@ -45,21 +47,20 @@ export default function FavoriteStylesScreen({ navigation }) {
 
   const toggleStyle = (style) => {
     if (selectedStyles.includes(style)) {
-      updateStylesText(selectedStyles.filter((s) => s !== style).join(", "));
+      updateStylesText(
+        selectedStyles
+          .filter((selectedStyle) => selectedStyle !== style)
+          .join(", "),
+      );
     } else {
       updateStylesText([...selectedStyles, style].join(", "));
     }
   };
 
-  const isStyleSelected = (style) => {
-    return selectedStyles.includes(style);
-  };
-
-  const progress = CURRENT_STEP / TOTAL_STEPS;
+  const isStyleSelected = (style) => selectedStyles.includes(style);
 
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -78,27 +79,25 @@ export default function FavoriteStylesScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>Favorite styles?</Text>
 
         <View style={styles.inputGroup}>
           <TextInput
             autoCapitalize="words"
-            blurOnSubmit={true}
+            blurOnSubmit
             maxLength={100}
             multiline
-
             numberOfLines={3}
             onBlur={() => updateStylesText(stylesText.replace(/[,\s]+$/, ""))}
             onChangeText={(text) => {
-              let filtered = text.replace(/[^a-zA-Z\s,]/g, "");
-              filtered = filtered.replace(/^[,\s]+/, "");
-              filtered = filtered.replace(/\s+/g, " ");
-              filtered = filtered.replace(/,+/g, ",");
-              filtered = filtered.replace(/\s+,/g, ",");
-              filtered = filtered.replace(/,(?!\s)/g, ", ");
-              updateStylesText(filtered);
+              let filteredText = text.replace(/[^a-zA-Z\s,]/g, "");
+              filteredText = filteredText.replace(/^[,\s]+/, "");
+              filteredText = filteredText.replace(/\s+/g, " ");
+              filteredText = filteredText.replace(/,+/g, ",");
+              filteredText = filteredText.replace(/\s+,/g, ",");
+              filteredText = filteredText.replace(/,(?!\s)/g, ", ");
+              updateStylesText(filteredText);
             }}
             placeholder="e.g., Old Money style"
             placeholderTextColor="#999"
@@ -133,15 +132,14 @@ export default function FavoriteStylesScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          disabled={!selectedStyles.length}
+          disabled={!hasSelectedStyles}
           onPress={handleContinue}
           style={[
             styles.continueButton,
-            !selectedStyles.length && styles.continueButtonDisabled,
+            !hasSelectedStyles && styles.continueButtonDisabled,
           ]}
         >
           <Text style={styles.continueButtonText}>Continue</Text>

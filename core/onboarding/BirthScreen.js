@@ -16,11 +16,10 @@ export default function BirthScreen({ navigation }) {
   const [showPicker, setShowPicker] = useState(Platform.OS === "ios");
   const insets = useSafeAreaInsets();
 
-  // Set max date to 13 years ago (minimum age)
+  // Limit birth-date selection to ages 13 through 100.
   const maxDate = new Date();
   maxDate.setFullYear(maxDate.getFullYear() - 13);
 
-  // Set min date to 100 years ago
   const minDate = new Date();
   minDate.setFullYear(minDate.getFullYear() - 100);
 
@@ -32,7 +31,7 @@ export default function BirthScreen({ navigation }) {
     navigation.goBack();
   };
 
-  const handleDateChange = (event, selectedDate) => {
+  const handleDateChange = (_event, selectedDate) => {
     if (Platform.OS === "android") {
       setShowPicker(false);
     }
@@ -64,7 +63,6 @@ export default function BirthScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -83,11 +81,9 @@ export default function BirthScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>When is your DoB?</Text>
 
-        {/* Date display / picker trigger for Android */}
         {Platform.OS === "android" && (
           <TouchableOpacity
             activeOpacity={0.7}
@@ -106,7 +102,6 @@ export default function BirthScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Date Picker */}
         {showPicker && (
           <View style={styles.pickerContainer}>
             <DateTimePicker
@@ -122,7 +117,6 @@ export default function BirthScreen({ navigation }) {
         )}
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}

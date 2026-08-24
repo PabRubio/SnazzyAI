@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { StatusBar } from "expo-status-bar";
@@ -36,19 +35,16 @@ GoogleSignin.configure({
 });
 
 export default function AuthScreen({ navigation }) {
+  // Retained for the paused language selector below.
+  // eslint-disable-next-line no-unused-vars
   const [language, setLanguage] = useState("en");
   const [loading, setLoading] = useState(false);
   const { switchToAppStack } = useNavigation();
   const insets = useSafeAreaInsets();
 
-  // Setup Superwall paywall
-  const { registerPlacement } = usePlacement({
+  usePlacement({
     onDismiss: (info, result) => {
-      console.log("Paywall dismissed:", info, "Result:", result);
-      // If user completed purchase, you can handle it here
       if (result?.state === "purchased") {
-        console.log("User purchased subscription!");
-        // Continue to sign in flow
         if (Platform.OS === "android") {
           handleGoogleSignIn();
         }
@@ -58,17 +54,13 @@ export default function AuthScreen({ navigation }) {
         }
       }
     },
-    onError: (error) => {
-      console.error("Paywall error:", error);
+    onError: (_error) => {
       Alert.alert("Error", "Failed to show paywall. Please try again.");
     },
-    onPresent: (info) => {
-      console.log("Paywall presented:", info);
-    },
+    onPresent: (_info) => {},
   });
 
   const handleGetStarted = async () => {
-    // Navigate to onboarding flow
     navigation.navigate("Onboarding");
   };
 
@@ -76,25 +68,21 @@ export default function AuthScreen({ navigation }) {
     try {
       setLoading(true);
 
-      // Check if Google Play Services are available (Android)
       await GoogleSignin.hasPlayServices();
 
-      // Sign out first to ensure account picker shows
+      // Ensure the account picker is shown for every sign-in attempt.
       await GoogleSignin.signOut();
 
-      // Sign in with Google
       const userInfo = await GoogleSignin.signIn();
 
-      // Get Google ID token (check both possible locations)
+      // Support both response shapes returned by compatible library versions.
       const idToken = userInfo.idToken || userInfo.data?.idToken;
 
       if (!idToken) {
-        console.error("Sign-in response:", JSON.stringify(userInfo, null, 2));
         throw new Error("No ID token returned from Google Sign-In");
       }
 
-      // Sign in to Supabase with Google ID token
-      const { data, error } = await supabase.auth.signInWithIdToken({
+      const { error } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: idToken,
       });
@@ -103,13 +91,8 @@ export default function AuthScreen({ navigation }) {
         throw error;
       }
 
-      console.log("Successfully signed in:", data.user.email);
-
-      // Manually switch to app stack
       switchToAppStack();
     } catch (error) {
-      console.error("Sign-in error:", error);
-
       let errorMessage = "Failed to sign in with Google";
 
       if (error.code === "SIGN_IN_CANCELLED") {
@@ -122,11 +105,11 @@ export default function AuthScreen({ navigation }) {
         errorMessage = error.message;
       }
 
-      const okButton = [{ text: "OK" }];
+      const alertButtons = [{ text: "OK" }];
 
-      Alert.alert("Sign-In Failed", errorMessage, okButton);
+      Alert.alert("Sign-In Failed", errorMessage, alertButtons);
 
-      // Only set loading to false on error
+      // Keep the loading state active after success while the app stack switches.
       setLoading(false);
     }
   };
@@ -155,10 +138,8 @@ export default function AuthScreen({ navigation }) {
         throw error;
       }
 
-      console.log("Successfully signed in:", data.user.email);
       await syncAppleProfileFromCredential(credential, data.user);
 
-      // Manually switch to app stack
       switchToAppStack();
     } catch (error) {
       if (error.code === "ERR_REQUEST_CANCELED") {
@@ -166,24 +147,22 @@ export default function AuthScreen({ navigation }) {
         return;
       }
 
-      console.error("Sign-in error:", error);
-
       let errorMessage = "Failed to sign in with Apple";
 
       if (error.message) {
         errorMessage = error.message;
       }
 
-      const okButton = [{ text: "OK" }];
+      const alertButtons = [{ text: "OK" }];
 
-      Alert.alert("Sign-In Failed", errorMessage, okButton);
+      Alert.alert("Sign-In Failed", errorMessage, alertButtons);
 
-      // Only set loading to false on error
+      // Keep the loading state active after success while the app stack switches.
       setLoading(false);
     }
   };
 
-  const authHandler = () => {
+  const handleSignIn = () => {
     if (Platform.OS === "android") {
       handleGoogleSignIn();
     }
@@ -196,7 +175,6 @@ export default function AuthScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {loading ? (
-        // Loading screen - matching HomeScreen pattern
         <View style={[styles.container, styles.centerContent]}>
           <ActivityIndicator color="#007AFF" size="large" />
           <Text style={styles.loadingText}>
@@ -281,7 +259,7 @@ export default function AuthScreen({ navigation }) {
                     AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
                   }
                   cornerRadius={12}
-                  onPress={authHandler}
+                  onPress={handleSignIn}
                   style={styles.appleSignInButton}
                 />
               </View>
@@ -295,7 +273,7 @@ export default function AuthScreen({ navigation }) {
                 <TouchableOpacity
                   activeOpacity={0.7}
                   disabled={loading}
-                  onPress={authHandler}
+                  onPress={handleSignIn}
                 >
                   <Text style={styles.signInLink}>
                     {language === "en" ? "Sign in" : "Iniciar sesión"}
@@ -334,7 +312,6 @@ const styles = StyleSheet.create({
   flagEmoji: {
     fontSize: 14,
   },
-  // Get Started button - matching Save Settings button styling
   getStartedButton: {
     alignItems: "center",
     backgroundColor: "#007AFF",
@@ -381,7 +358,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: 2,
   },
-  // Language toggle
   languageToggleContainer: {
     alignItems: "center",
     zIndex: 1,
@@ -398,7 +374,6 @@ const styles = StyleSheet.create({
     marginTop: -60,
     width: width * 0.9,
   },
-  // Logo at top - matching HomeScreen exact styling
   logoContainer: {
     alignItems: "center",
     paddingHorizontal: 20,
@@ -407,7 +382,6 @@ const styles = StyleSheet.create({
     height: 360,
     width: width * 0.95,
   },
-  // Screenshot2 container
   screenshotContainer: {
     alignItems: "center",
     paddingHorizontal: 20,
@@ -423,7 +397,6 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  // Sign in text container
   signInContainer: {
     alignItems: "center",
     flexDirection: "row",
@@ -439,7 +412,6 @@ const styles = StyleSheet.create({
     color: "#3a3b3c",
     fontSize: 14,
   },
-  // Tagline text
   tagline: {
     color: "#3a3b3c",
     fontSize: 32,

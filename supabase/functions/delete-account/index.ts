@@ -1,8 +1,3 @@
-// =====================================================
-// SnazzyAI - Delete Account Edge Function
-// Deletes the authenticated user and associated data
-// =====================================================
-
 // Keep these pinned URL imports until the deployed function's dependencies are migrated.
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -25,74 +20,90 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) => {
 };
 
 const collectStoragePaths = async (
-  supabase: ReturnType<typeof createClient>,
-  bucket: string,
+  supabaseClient: ReturnType<typeof createClient>,
+  bucketName: string,
   prefix: string,
 ): Promise<string[]> => {
-  const paths: string[] = [];
+  const storagePaths: string[] = [];
   let offset = 0;
 
   while (true) {
-    const { data, error } = await supabase.storage
-      .from(bucket)
+    const { data: storageItems, error: listError } = await supabaseClient
+      .storage
+      .from(bucketName)
       .list(prefix, {
         limit: STORAGE_PAGE_SIZE,
         offset,
         sortBy: { column: "name", order: "asc" },
       });
 
-    if (error) {
-      throw new Error(`Failed to list ${bucket} storage: ${error.message}`);
+    if (listError) {
+      throw new Error(
+        `Failed to list ${bucketName} storage: ${listError.message}`,
+      );
     }
 
-    if (!data || data.length === 0) {
+    if (!storageItems || storageItems.length === 0) {
       break;
     }
 
-    for (const item of data) {
-      const path = `${prefix}/${item.name}`;
+    for (const storageItem of storageItems) {
+      const storagePath = `${prefix}/${storageItem.name}`;
 
-      if (!item.id && item.metadata === null) {
-        const nestedPaths = await collectStoragePaths(supabase, bucket, path);
-        paths.push(...nestedPaths);
+      if (!storageItem.id && storageItem.metadata === null) {
+        const nestedStoragePaths = await collectStoragePaths(
+          supabaseClient,
+          bucketName,
+          storagePath,
+        );
+        storagePaths.push(...nestedStoragePaths);
       } else {
-        paths.push(path);
+        storagePaths.push(storagePath);
       }
     }
 
-    if (data.length < STORAGE_PAGE_SIZE) {
+    if (storageItems.length < STORAGE_PAGE_SIZE) {
       break;
     }
 
     offset += STORAGE_PAGE_SIZE;
   }
 
-  return paths;
+  return storagePaths;
 };
 
 const removeStoragePaths = async (
-  supabase: ReturnType<typeof createClient>,
-  bucket: string,
-  paths: string[],
+  supabaseClient: ReturnType<typeof createClient>,
+  bucketName: string,
+  storagePaths: string[],
 ) => {
-  for (let i = 0; i < paths.length; i += REMOVE_BATCH_SIZE) {
-    const batch = paths.slice(i, i + REMOVE_BATCH_SIZE);
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove(batch);
+  for (
+    let startIndex = 0;
+    startIndex < storagePaths.length;
+    startIndex += REMOVE_BATCH_SIZE
+  ) {
+    const pathBatch = storagePaths.slice(
+      startIndex,
+      startIndex + REMOVE_BATCH_SIZE,
+    );
+    const { error: removeError } = await supabaseClient.storage
+      .from(bucketName)
+      .remove(pathBatch);
 
-    if (error) {
-      throw new Error(`Failed to remove ${bucket} storage: ${error.message}`);
+    if (removeError) {
+      throw new Error(
+        `Failed to remove ${bucketName} storage: ${removeError.message}`,
+      );
     }
   }
 };
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
+serve(async (request) => {
+  if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (req.method !== "POST") {
+  if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
@@ -105,14 +116,14 @@ serve(async (req) => {
       throw new Error("Supabase environment variables are not configured");
     }
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const authorizationHeader = request.headers.get("Authorization");
+    if (!authorizationHeader) {
       return jsonResponse({ error: "Missing authorization header" }, 401);
     }
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
-        headers: { Authorization: authHeader },
+        headers: { Authorization: authorizationHeader },
       },
       auth: {
         persistSession: false,
@@ -133,10 +144,14 @@ serve(async (req) => {
       },
     });
 
-    for (const bucket of STORAGE_BUCKETS) {
-      const paths = await collectStoragePaths(adminClient, bucket, user.id);
-      if (paths.length > 0) {
-        await removeStoragePaths(adminClient, bucket, paths);
+    for (const bucketName of STORAGE_BUCKETS) {
+      const storagePaths = await collectStoragePaths(
+        adminClient,
+        bucketName,
+        user.id,
+      );
+      if (storagePaths.length > 0) {
+        await removeStoragePaths(adminClient, bucketName, storagePaths);
       }
     }
 
@@ -149,16 +164,17 @@ serve(async (req) => {
 
     return jsonResponse({ success: true });
   } catch (error) {
-    const message = error instanceof Error
+    const errorMessage = error instanceof Error
       ? error.message
       : "Failed to delete account";
-    const details = error instanceof Error ? error.toString() : String(error);
+    const errorDetails = error instanceof Error
+      ? error.toString()
+      : String(error);
 
-    console.error("Error in delete-account function:", error);
     return jsonResponse(
       {
-        error: message,
-        details,
+        error: errorMessage,
+        details: errorDetails,
       },
       500,
     );

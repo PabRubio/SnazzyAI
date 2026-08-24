@@ -1,8 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import BottomSheet, {
-  BottomSheetScrollView,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { useEventListener } from "expo";
 import { BlurView } from "expo-blur";
 import { CameraView } from "expo-camera";
@@ -22,7 +19,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  FlatList,
   Image,
   Linking,
   StatusBar as RNStatusBar,
@@ -34,11 +30,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   interpolate,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -58,20 +51,17 @@ import TextInput from "../components/typography/TextInput";
 
 const { height, width } = Dimensions.get("window");
 const BUTTON_SIZE = 60;
-const BUTTON_BORDER_SIZE = 4;
 
-// Utility function for safe haptic feedback
 const safeHaptic = async (hapticFunction) => {
   try {
     await hapticFunction();
-  } catch (error) {
-    // Silently handle haptic not supported on device
-    console.log("Haptics not available on this device");
+  } catch {
+    // Haptic feedback is optional and may be unavailable on some devices.
   }
 };
 
 export default function CameraScreen({ navigation }) {
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [, setIsCapturing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState(null);
@@ -112,24 +102,20 @@ export default function CameraScreen({ navigation }) {
   const videoGenerationAbortControllerRef = useRef(null);
   const tryOnAbortControllerRef = useRef(null);
 
-  // BottomSheet setup
   const bottomSheetRef = useRef(null);
   const snapPoints = useMemo(() => ["25%", "85%"], []);
 
-  // Video player setup
   const videoPlayer = useVideoPlayer(generatedVideoUrl, (player) => {
     player.loop = false;
     player.play();
   });
 
-  // When video finishes, hide it to show the photo
   useEventListener(videoPlayer, "playToEnd", () => {
     setIsVideoPlaying(false);
     setIsVideoVisible(false);
     videoPlayer.pause();
   });
 
-  // Handle opening purchase URLs in browser
   const handleOpenPurchaseUrl = useCallback(async (url) => {
     if (!url) {
       Alert.alert(
@@ -141,7 +127,6 @@ export default function CameraScreen({ navigation }) {
     }
 
     try {
-      // Basic URL validation
       const isValidUrl =
         url.startsWith("http://") || url.startsWith("https://");
 
@@ -154,21 +139,18 @@ export default function CameraScreen({ navigation }) {
         return;
       }
 
-      // Open URL directly - it will throw if it truly can't open
       await Linking.openURL(url);
-    } catch (error) {
-      console.error("Error opening URL:", error);
+    } catch {
       Alert.alert("Error", "Unable to open the link. Please try again later.", [
         { text: "OK" },
       ]);
     }
   }, []);
 
-  // Handle toggling favorite status
   const handleToggleFavorite = useCallback(
     async (item, itemId) => {
       const isFavorite = favoriteItems.has(itemId);
-      const dbUuid = favoriteItems.get(itemId);
+      const favoriteId = favoriteItems.get(itemId);
 
       // Optimistically update UI
       setFavoriteItems((prevFavorites) => {
@@ -176,18 +158,17 @@ export default function CameraScreen({ navigation }) {
         if (isFavorite) {
           newFavorites.delete(itemId);
         } else {
-          newFavorites.set(itemId, "pending"); // Temporary until we get the UUID
+          // Use a placeholder until the insert returns the favorite ID.
+          newFavorites.set(itemId, "pending");
         }
         return newFavorites;
       });
 
       try {
         if (isFavorite) {
-          // Remove from favorites using database UUID
-          await removeFavorite(dbUuid);
+          await removeFavorite(favoriteId);
         } else {
-          // Add to favorites and get the database UUID back
-          const newDbUuid = await addFavorite({
+          const newFavoriteId = await addFavorite({
             brand: item.brand,
             category: item.category || "other",
             description: item.description,
@@ -196,20 +177,18 @@ export default function CameraScreen({ navigation }) {
             price: item.price,
             purchaseUrl: item.purchaseUrl,
           });
-          // Update with actual database UUID
           setFavoriteItems((prevFavorites) => {
             const newFavorites = new Map(prevFavorites);
-            newFavorites.set(itemId, newDbUuid);
+            newFavorites.set(itemId, newFavoriteId);
             return newFavorites;
           });
         }
-      } catch (error) {
-        console.error("Failed to update favorite:", error);
+      } catch {
         // Revert optimistic update on error
         setFavoriteItems((prevFavorites) => {
           const newFavorites = new Map(prevFavorites);
           if (isFavorite) {
-            newFavorites.set(itemId, dbUuid); // Restore with original UUID
+            newFavorites.set(itemId, favoriteId);
           } else {
             newFavorites.delete(itemId);
           }
@@ -221,7 +200,6 @@ export default function CameraScreen({ navigation }) {
     [favoriteItems],
   );
 
-  // Handle long press on recommendation item
   const handleLongPressRecommendation = useCallback(async (item) => {
     await safeHaptic(() =>
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
@@ -230,24 +208,17 @@ export default function CameraScreen({ navigation }) {
     setShowTryOnModal(true);
   }, []);
 
-  // Handle Try-On modal OK button
   const handleTryOnOk = useCallback(async () => {
-    // Close the modal first
     setShowTryOnModal(false);
     const currentItem = selectedTryOnItem;
     setSelectedTryOnItem(null);
 
-    // Show loading screen
     setShowLoadingScreen(true);
 
-    // Create abort controller for this try-on request
     const abortController = new AbortController();
     tryOnAbortControllerRef.current = abortController;
 
     try {
-      console.log("Starting virtual try-on with Nano Banana...");
-
-      // Call Supabase edge function for virtual try-on
       const { data, error } = await supabase.functions.invoke(
         "virtual-try-on",
         {
@@ -266,70 +237,43 @@ export default function CameraScreen({ navigation }) {
         throw new Error("No image returned from virtual try-on");
       }
 
-      // Clear abort controller on success
       if (tryOnAbortControllerRef.current === abortController) {
         tryOnAbortControllerRef.current = null;
       }
-
-      console.log("Virtual try-on successful!");
 
       // Upload result image to storage once (while loading screen is still showing)
       const { path: resultStoragePath, url: resultImageUrl } =
         await uploadPhoto(data.base64, "try-on-results");
       setTryOnResultStoragePath(resultStoragePath);
 
-      // Save try-on result to database (without awaiting) — passes pre-uploaded URL
-      const photoUrl = capturedPhotoUri;
-      saveTryOnResult(photoUrl, currentItem.imageUrl, resultImageUrl).catch(
-        (err) => {
-          console.error("Failed to save try-on result:", err);
-        },
-      );
+      // Persist the result without delaying the result overlay.
+      saveTryOnResult(
+        capturedPhotoUri,
+        currentItem.imageUrl,
+        resultImageUrl,
+      ).catch(() => undefined);
 
-      // Hide loading screen and show result overlay
       setTryOnResultImage(data.dataUri);
       setShowLoadingScreen(false);
       setShowTryOnResult(true);
     } catch (error) {
-      console.error("Virtual try-on failed:", error);
-
-      // Clear abort controller on error
       if (tryOnAbortControllerRef.current === abortController) {
         tryOnAbortControllerRef.current = null;
       }
 
-      // Hide loading screen
       setShowLoadingScreen(false);
 
-      // If request was aborted, just clean up silently
       if (error.name === "AbortError") {
         return;
-      }
-
-      // Show error to user
-      let errorMsg = "Virtual try-on failed. Please try again.";
-      if (error.message) {
-        if (error.message.includes("API key")) {
-          errorMsg = "Google API key not configured. Please check settings.";
-        } else if (
-          error.message.includes("Network") ||
-          error.message.includes("connection")
-        ) {
-          errorMsg = "Network error. Please check your connection.";
-        } else if (error.message.includes("Rate limit")) {
-          errorMsg = "Too many requests. Please wait a moment.";
-        }
       }
     }
   }, [capturedPhotoBase64, selectedTryOnItem]);
 
-  // Handle Try-On modal Cancel button
   const handleTryOnCancel = useCallback(async () => {
     setShowTryOnModal(false);
     setSelectedTryOnItem(null);
   }, []);
 
-  // Handle closing try-on result
   const handleCloseTryOnResult = useCallback(async () => {
     if (videoGenerationAbortControllerRef.current) {
       videoGenerationAbortControllerRef.current.abort();
@@ -344,20 +288,15 @@ export default function CameraScreen({ navigation }) {
     setIsVideoVisible(false);
   }, []);
 
-  // Handle video generation from try-on result
   const handleGenerateVideo = useCallback(async () => {
     if (!tryOnResultStoragePath || isGeneratingVideo) return;
 
     setIsGeneratingVideo(true);
 
-    // Create abort controller
     const abortController = new AbortController();
     videoGenerationAbortControllerRef.current = abortController;
 
     try {
-      console.log("Starting video generation...");
-
-      // Call video generation edge function with storage path (no re-upload needed)
       const { data, error } = await supabase.functions.invoke(
         "generate-video",
         {
@@ -375,19 +314,14 @@ export default function CameraScreen({ navigation }) {
         throw new Error("No video URL returned");
       }
 
-      // Clear abort controller on success
       if (videoGenerationAbortControllerRef.current === abortController) {
         videoGenerationAbortControllerRef.current = null;
       }
 
-      console.log("Video generated successfully:", data.videoUrl);
-
       setGeneratedVideoUrl(data.videoUrl);
-      setIsVideoVisible(true); // 🥸
+      setIsVideoVisible(true);
       setIsVideoPlaying(true);
     } catch (error) {
-      console.error("Video generation failed:", error);
-
       if (videoGenerationAbortControllerRef.current === abortController) {
         videoGenerationAbortControllerRef.current = null;
       }
@@ -407,7 +341,6 @@ export default function CameraScreen({ navigation }) {
     }
   }, [tryOnResultStoragePath, isGeneratingVideo]);
 
-  // Handle toggling video play/pause
   const handleToggleVideoPlayback = useCallback(() => {
     if (!videoPlayer) return;
     if (isVideoPlaying) {
@@ -423,7 +356,6 @@ export default function CameraScreen({ navigation }) {
     }
   }, [videoPlayer, isVideoPlaying, isVideoVisible]);
 
-  // Handle close button - reset and navigate back to home
   const handleClose = useCallback(async () => {
     // Abort any ongoing network requests
     if (analysisAbortControllerRef.current) {
@@ -443,17 +375,14 @@ export default function CameraScreen({ navigation }) {
       videoGenerationAbortControllerRef.current = null;
     }
 
-    // Close bottom sheet first
     bottomSheetRef.current?.close();
 
-    // Wait for bottom sheet animation to complete (250ms)
-    // Then navigate back - let unmount cleanup handle state reset
+    // Let the bottom sheet finish closing before navigation unmounts the screen.
     setTimeout(() => {
       navigation.goBack();
     }, 250);
   }, [navigation]);
 
-  // Handle refresh button - reset to camera view
   const handleRefresh = useCallback(async () => {
     // Abort any ongoing network requests
     if (analysisAbortControllerRef.current) {
@@ -473,10 +402,9 @@ export default function CameraScreen({ navigation }) {
       videoGenerationAbortControllerRef.current = null;
     }
 
-    // Close bottom sheet first
     bottomSheetRef.current?.close();
 
-    // Wait for bottom sheet animation (250ms), then reset all state
+    // Keep the reset aligned with the bottom sheet's closing animation.
     setTimeout(() => {
       setCapturedPhotoUri(null);
       setCapturedPhotoBase64(null);
@@ -502,10 +430,13 @@ export default function CameraScreen({ navigation }) {
     }, 250);
   }, []);
 
-  // Handle confirming inline outfit name edit
   const handleConfirmEdit = useCallback(() => {
-    const trimmed = editedTitle.trim().replace(/\s+/g, " ");
-    if (!trimmed || !/^[a-zA-Z\s]+$/.test(trimmed) || trimmed.length > 30) {
+    const normalizedTitle = editedTitle.trim().replace(/\s+/g, " ");
+    if (
+      !normalizedTitle ||
+      !/^[a-zA-Z\s]+$/.test(normalizedTitle) ||
+      normalizedTitle.length > 30
+    ) {
       Alert.alert(
         "Invalid Name",
         "Name must be 1-30 characters and contain only letters and spaces.",
@@ -513,17 +444,19 @@ export default function CameraScreen({ navigation }) {
       setIsEditingTitle(false);
       return;
     }
-    setAnalysisResult((prev) => ({ ...prev, outfitName: trimmed }));
+    setAnalysisResult((previousResult) => ({
+      ...previousResult,
+      outfitName: normalizedTitle,
+    }));
     setIsEditingTitle(false);
-    // Fire-and-forget DB update
+
     if (analysisResult?.analysisId) {
+      // Attaching a handler executes this non-blocking Supabase thenable.
       supabase
         .from("outfit_analyses")
-        .update({ outfit_name: trimmed })
+        .update({ outfit_name: normalizedTitle })
         .eq("id", analysisResult.analysisId)
-        .then(({ error }) => {
-          if (error) console.error("Failed to update outfit name:", error);
-        });
+        .then(({ error }) => void error);
     }
   }, [editedTitle, analysisResult?.analysisId]);
 
@@ -531,7 +464,6 @@ export default function CameraScreen({ navigation }) {
     setIsEditingTitle(false);
   }, []);
 
-  // Handle generating recommendations on demand
   const handleGenerateRecommendations = useCallback(async () => {
     if (
       !analysisResult ||
@@ -544,21 +476,14 @@ export default function CameraScreen({ navigation }) {
 
     setIsGeneratingRecommendations(true);
 
-    // Create abort controller for this recommendation request
     const abortController = new AbortController();
     recommendationsAbortControllerRef.current = abortController;
 
     try {
-      console.log("Generating recommendations on demand...");
+      const accumulatedProducts = [];
 
-      let accumulatedProducts = [];
-
-      for (let run = 0; run < 3; run++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         if (abortController.signal.aborted) break;
-
-        console.log(
-          `Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`,
-        );
 
         const { data, error } = await supabase.functions.invoke(
           "search-products-2",
@@ -566,24 +491,23 @@ export default function CameraScreen({ navigation }) {
             body: {
               base64Image: capturedPhotoBase64,
               outfitName: analysisResult?.outfitName || "",
-              userProfile: userProfile,
+              userProfile,
             },
           },
         );
 
         if (error) {
-          console.error(`Recommendation run ${run + 1} failed:`, error.message);
           continue;
         }
 
         if (data?.products) {
           const existingUrls = new Set(
-            accumulatedProducts.map((p) => p.purchaseUrl),
+            accumulatedProducts.map((product) => product.purchaseUrl),
           );
           const newProducts = data.products.filter(
-            (p) => !existingUrls.has(p.purchaseUrl),
+            (product) => !existingUrls.has(product.purchaseUrl),
           );
-          newProducts.map((item) => accumulatedProducts.push(item));
+          newProducts.forEach((item) => accumulatedProducts.push(item));
         }
 
         if (accumulatedProducts.length >= 10) break;
@@ -595,34 +519,27 @@ export default function CameraScreen({ navigation }) {
         throw new Error("No recommendations returned after 3 attempts");
       }
 
-      console.log(`Final recommendations: ${recommendations.length} products`);
-
-      // Clear abort controller on success
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
       }
 
-      // Check if photo was cleared (user pressed refresh) - if so, don't update recommendations
+      // Apply results only while the captured photo is still present.
       setCapturedPhotoUri((currentUri) => {
         if (!currentUri) {
-          // Photo was cleared, cancel updating recommendations
           setIsGeneratingRecommendations(false);
           return currentUri;
         }
 
-        // Photo still exists, update analysis result with recommendations
         setAnalysisResult((prevResult) => {
           const updatedResult = {
             ...prevResult,
-            recommendations: recommendations,
+            recommendations,
           };
 
           // Save recommendations to database (without awaiting)
           if (prevResult.analysisId) {
             saveRecommendations(prevResult.analysisId, recommendations).catch(
-              (err) => {
-                console.error("Failed to save recommendations:", err);
-              },
+              () => undefined,
             );
           }
 
@@ -635,28 +552,22 @@ export default function CameraScreen({ navigation }) {
         return currentUri;
       });
     } catch (error) {
-      console.error("Failed to generate recommendations:", error);
-
-      // Clear abort controller on error
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
       }
 
-      // If request was aborted, just clean up silently
       if (error.name === "AbortError") {
         setIsGeneratingRecommendations(false);
         return;
       }
 
-      // Check if photo was cleared - if so, don't show error
+      // Do not restore state after refresh has cleared the photo.
       setCapturedPhotoUri((currentUri) => {
         if (!currentUri) {
-          // Photo was cleared, just reset flag
           setIsGeneratingRecommendations(false);
           return currentUri;
         }
 
-        // Photo still exists, show error
         setIsGeneratingRecommendations(false);
 
         return currentUri;
@@ -670,7 +581,6 @@ export default function CameraScreen({ navigation }) {
     userProfile,
   ]);
 
-  // Handle regenerating recommendations (reruns search-products-2)
   const handleRegenerateRecommendations = useCallback(async () => {
     if (
       !analysisResult ||
@@ -682,21 +592,14 @@ export default function CameraScreen({ navigation }) {
 
     setIsGeneratingRecommendations(true);
 
-    // Create abort controller for this recommendation request
     const abortController = new AbortController();
     recommendationsAbortControllerRef.current = abortController;
 
     try {
-      console.log("Generating recommendations on demand...");
+      const accumulatedProducts = [];
 
-      let accumulatedProducts = [];
-
-      for (let run = 0; run < 3; run++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         if (abortController.signal.aborted) break;
-
-        console.log(
-          `Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`,
-        );
 
         const { data, error } = await supabase.functions.invoke(
           "search-products-2",
@@ -704,24 +607,23 @@ export default function CameraScreen({ navigation }) {
             body: {
               base64Image: capturedPhotoBase64,
               outfitName: analysisResult?.outfitName || "",
-              userProfile: userProfile,
+              userProfile,
             },
           },
         );
 
         if (error) {
-          console.error(`Recommendation run ${run + 1} failed:`, error.message);
           continue;
         }
 
         if (data?.products) {
           const existingUrls = new Set(
-            accumulatedProducts.map((p) => p.purchaseUrl),
+            accumulatedProducts.map((product) => product.purchaseUrl),
           );
           const newProducts = data.products.filter(
-            (p) => !existingUrls.has(p.purchaseUrl),
+            (product) => !existingUrls.has(product.purchaseUrl),
           );
-          newProducts.map((item) => accumulatedProducts.push(item));
+          newProducts.forEach((item) => accumulatedProducts.push(item));
         }
 
         if (accumulatedProducts.length >= 10) break;
@@ -733,34 +635,27 @@ export default function CameraScreen({ navigation }) {
         throw new Error("No recommendations returned after 3 attempts");
       }
 
-      console.log(`Final recommendations: ${recommendations.length} products`);
-
-      // Clear abort controller on success
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
       }
 
-      // Check if photo was cleared (user pressed refresh) - if so, don't update recommendations
+      // Apply results only while the captured photo is still present.
       setCapturedPhotoUri((currentUri) => {
         if (!currentUri) {
-          // Photo was cleared, cancel updating recommendations
           setIsGeneratingRecommendations(false);
           return currentUri;
         }
 
-        // Photo still exists, update analysis result with new recommendations
         setAnalysisResult((prevResult) => {
           const updatedResult = {
             ...prevResult,
-            recommendations: recommendations,
+            recommendations,
           };
 
           // Save recommendations to database (without awaiting)
           if (prevResult.analysisId) {
             saveRecommendations(prevResult.analysisId, recommendations).catch(
-              (err) => {
-                console.error("Failed to save recommendations:", err);
-              },
+              () => undefined,
             );
           }
 
@@ -769,35 +664,28 @@ export default function CameraScreen({ navigation }) {
 
         setFavoriteItems(new Map());
 
-        // Increment regenerate count
-        setRegenerateCount((prev) => prev + 1);
+        setRegenerateCount((previousCount) => previousCount + 1);
         setIsGeneratingRecommendations(false);
 
         return currentUri;
       });
     } catch (error) {
-      console.error("Failed to regenerate recommendations:", error);
-
-      // Clear abort controller on error
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
       }
 
-      // If request was aborted, just clean up silently
       if (error.name === "AbortError") {
         setIsGeneratingRecommendations(false);
         return;
       }
 
-      // Check if photo was cleared - if so, don't show error
+      // Do not restore state after refresh has cleared the photo.
       setCapturedPhotoUri((currentUri) => {
         if (!currentUri) {
-          // Photo was cleared, just reset flag
           setIsGeneratingRecommendations(false);
           return currentUri;
         }
 
-        // Photo still exists, show error
         setIsGeneratingRecommendations(false);
 
         return currentUri;
@@ -810,22 +698,18 @@ export default function CameraScreen({ navigation }) {
     userProfile,
   ]);
 
-  // Animation values
+  // Keep dormant animation slots to preserve the established Hook order.
   const buttonScale = useSharedValue(1);
-  const buttonOpacity = useSharedValue(0);
+  useSharedValue(0);
 
-  // Border glow animation values
   const borderOpacity = useSharedValue(0);
-  const borderGlowProgress = useSharedValue(0);
+  useSharedValue(0);
   const borderPulse = useSharedValue(0);
   const borderGlow = useSharedValue(0);
 
-  // Handle capture button press start
   const handlePressIn = async () => {
-    // Don't start a new capture if one is being processed
     if (isProcessingCapture) return;
 
-    // Clear any pending delayed capture
     if (delayedCaptureRef.current) {
       clearTimeout(delayedCaptureRef.current);
       delayedCaptureRef.current = null;
@@ -833,20 +717,16 @@ export default function CameraScreen({ navigation }) {
 
     setIsCapturing(true);
 
-    // Start continuous very light haptic feedback
     hapticIntervalRef.current = setInterval(async () => {
       await safeHaptic(() => Haptics.selectionAsync());
     }, 50);
 
-    // Start animations
     buttonScale.value = withTiming(0.85, { duration: 100 });
 
-    // Start border glow animations
     borderOpacity.value = withTiming(1, {
       duration: 300,
       easing: Easing.out(Easing.ease),
     });
-    // Set static border opacity without pulsing
     borderPulse.value = withTiming(0.5, {
       duration: 300,
       easing: Easing.out(Easing.ease),
@@ -856,42 +736,32 @@ export default function CameraScreen({ navigation }) {
       easing: Easing.out(Easing.ease),
     });
 
-    // Set capture timer (2 seconds)
     captureTimerRef.current = setTimeout(() => {
-      // Button held for 2 seconds - stop haptic feedback
       if (hapticIntervalRef.current) {
         clearInterval(hapticIntervalRef.current);
         hapticIntervalRef.current = null;
       }
 
-      // Clear timer reference
       captureTimerRef.current = null;
 
-      // Reset button scale immediately when haptic ends
       buttonScale.value = withTiming(1, { duration: 200 });
 
-      // Take photo immediately when haptic ends
       handleCapture();
     }, 2000);
   };
 
-  // Handle capture button press end
   const handlePressOut = () => {
     setIsCapturing(false);
 
-    // Clear haptic interval
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
       hapticIntervalRef.current = null;
     }
 
-    // Check if button was held for full 2 seconds
     if (captureTimerRef.current) {
-      // Button released early - cancel capture and fade out border
       clearTimeout(captureTimerRef.current);
       captureTimerRef.current = null;
 
-      // Fade out border animations since capture was cancelled
       borderOpacity.value = withTiming(0, {
         duration: 200,
         easing: Easing.in(Easing.ease),
@@ -904,36 +774,26 @@ export default function CameraScreen({ navigation }) {
         duration: 200,
         easing: Easing.in(Easing.ease),
       });
-
-      // Reset button scale
-      buttonScale.value = withTiming(1, { duration: 100 });
-    } else {
-      // Photo was already taken, border animation already faded in timer
-      // Just reset button scale
-      buttonScale.value = withTiming(1, { duration: 100 });
     }
+
+    buttonScale.value = withTiming(1, { duration: 100 });
   };
 
-  // Handle photo capture
   const handleCapture = async () => {
     if (!cameraRef.current || !isCameraReady || isProcessingCapture) return;
 
-    // Set processing flag
     setIsProcessingCapture(true);
 
-    // Clear delayed capture ref
     if (delayedCaptureRef.current) {
       clearTimeout(delayedCaptureRef.current);
       delayedCaptureRef.current = null;
     }
 
-    // Clear haptic interval immediately
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
       hapticIntervalRef.current = null;
     }
 
-    // Fade out border animation right when photo is taken
     borderOpacity.value = withTiming(0, {
       duration: 200,
       easing: Easing.in(Easing.ease),
@@ -948,8 +808,6 @@ export default function CameraScreen({ navigation }) {
     });
 
     try {
-      // Photo capture with shutter sound disabled
-
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
         exif: false,
@@ -957,41 +815,30 @@ export default function CameraScreen({ navigation }) {
         shutterSound: false,
       });
 
-      console.log("Photo captured:", photo.uri);
-
-      // Store the captured photo URI and base64
       setCapturedPhotoUri(photo.uri);
       setCapturedPhotoBase64(photo.base64);
 
-      // Reset capture state
       setIsCapturing(false);
 
-      // Start analysis and show BottomSheet immediately with the photo
       setIsAnalyzing(true);
       setAnalysisResult(null);
       bottomSheetRef.current?.snapToIndex(0); // Snap to collapsed state (25%)
 
-      // Create abort controller for this analysis
       const abortController = new AbortController();
       analysisAbortControllerRef.current = abortController;
 
       try {
-        console.log("Starting outfit analysis...");
-
-        // First, upload photo to Supabase Storage
         const { url: photoUrl } = await uploadPhoto(
           photo.base64,
           "outfit-photos",
         );
-        console.log("Photo uploaded to:", photoUrl);
 
-        // Call Supabase edge function for outfit analysis
         const { data, error } = await supabase.functions.invoke(
           "analyze-outfit",
           {
             body: {
               base64Image: photo.base64,
-              userProfile: userProfile,
+              userProfile,
             },
           },
         );
@@ -1005,49 +852,38 @@ export default function CameraScreen({ navigation }) {
         }
 
         const result = { analysis: data };
-        console.log("Analysis complete:", result);
 
-        // Clear abort controller on success
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
 
-        // Check if photo was cleared (user pressed refresh) - if so, don't show results
+        // Apply results only while the captured photo is still present.
         setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
-            // Photo was cleared, cancel showing results
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
             return currentUri;
           }
 
-          // Photo still exists, proceed with showing results
-          // Check if the photo is valid
           if (result.isValidPhoto === false) {
-            // Invalid photo detected
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
             bottomSheetRef.current?.close();
-            // Reset camera state and clear captured photo
             setTimeout(() => {
               setAnalysisResult(null);
               setCapturedPhotoUri(null);
             }, 500);
           } else {
-            // Valid photo, save analysis to database (without awaiting)
+            // Saving is intentionally non-blocking so results render immediately.
             saveOutfitAnalysis(result.analysis, photoUrl)
               .then((analysisId) => {
-                // Update result with analysisId for later use (recommendations)
                 setAnalysisResult((prevResult) => ({
                   ...prevResult,
-                  analysisId: analysisId,
+                  analysisId,
                 }));
               })
-              .catch((err) => {
-                console.error("Failed to save outfit analysis:", err);
-              });
+              .catch(() => undefined);
 
-            // Show results immediately
             setAnalysisResult({ ...result.analysis });
             setIsProcessingCapture(false);
             setIsAnalyzing(false);
@@ -1056,54 +892,29 @@ export default function CameraScreen({ navigation }) {
           return currentUri;
         });
       } catch (analysisError) {
-        console.error("Analysis failed:", analysisError);
-
-        // Clear abort controller on error
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
 
-        // If request was aborted, just clean up silently
         if (analysisError.name === "AbortError") {
           setIsAnalyzing(false);
           setIsProcessingCapture(false);
           return;
         }
 
-        // Check if photo was cleared (user pressed refresh) - if so, don't show error
+        // Do not restore state after refresh has cleared the photo.
         setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
-            // Photo was cleared, just reset flags
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
             return currentUri;
           }
 
-          // Photo still exists, show error
           setIsAnalyzing(false);
           bottomSheetRef.current?.close();
 
-          // Determine error message based on error type
-          let errorMsg = "Connection error. Please check your network.";
-          if (analysisError.message) {
-            if (
-              analysisError.message.includes("Network") ||
-              analysisError.message.includes("connection") ||
-              analysisError.message.includes("timeout")
-            ) {
-              errorMsg = "Connection error. Please check your network.";
-            } else if (analysisError.message.includes("API key")) {
-              errorMsg = "Configuration error. Please check API settings.";
-            } else if (analysisError.message.includes("Rate limit")) {
-              errorMsg = "Too many requests. Please wait a moment.";
-            } else {
-              errorMsg = "Failed to analyze outfit. Please try again.";
-            }
-          }
-
           setIsProcessingCapture(false);
 
-          // Reset camera state and clear captured photo
           setTimeout(() => {
             setAnalysisResult(null);
             setCapturedPhotoUri(null);
@@ -1112,8 +923,7 @@ export default function CameraScreen({ navigation }) {
           return currentUri;
         });
       }
-    } catch (error) {
-      console.error("Error taking picture:", error);
+    } catch {
       setIsCapturing(false);
       setIsProcessingCapture(false);
 
@@ -1121,13 +931,11 @@ export default function CameraScreen({ navigation }) {
         { text: "OK" },
       ]);
 
-      // Clear haptic interval on error as well
       if (hapticIntervalRef.current) {
         clearInterval(hapticIntervalRef.current);
         hapticIntervalRef.current = null;
       }
 
-      // Clear delayed capture on error
       if (delayedCaptureRef.current) {
         clearTimeout(delayedCaptureRef.current);
         delayedCaptureRef.current = null;
@@ -1135,7 +943,6 @@ export default function CameraScreen({ navigation }) {
     }
   };
 
-  // Handle picking image from gallery
   const handlePickImage = async () => {
     if (isProcessingCapture) return;
 
@@ -1151,7 +958,6 @@ export default function CameraScreen({ navigation }) {
       }
 
       const photo = result.assets[0];
-      console.log("Image picked:", photo.uri);
 
       setIsProcessingCapture(true);
       setCapturedPhotoUri(photo.uri);
@@ -1165,20 +971,17 @@ export default function CameraScreen({ navigation }) {
       analysisAbortControllerRef.current = abortController;
 
       try {
-        console.log("Starting outfit analysis...");
-
         const { url: photoUrl } = await uploadPhoto(
           photo.base64,
           "outfit-photos",
         );
-        console.log("Photo uploaded to:", photoUrl);
 
         const { data, error } = await supabase.functions.invoke(
           "analyze-outfit",
           {
             body: {
               base64Image: photo.base64,
-              userProfile: userProfile,
+              userProfile,
             },
           },
         );
@@ -1192,7 +995,6 @@ export default function CameraScreen({ navigation }) {
         }
 
         const analysisData = { analysis: data };
-        console.log("Analysis complete:", analysisData);
 
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
@@ -1218,12 +1020,10 @@ export default function CameraScreen({ navigation }) {
               .then((analysisId) => {
                 setAnalysisResult((prevResult) => ({
                   ...prevResult,
-                  analysisId: analysisId,
+                  analysisId,
                 }));
               })
-              .catch((err) => {
-                console.error("Failed to save outfit analysis:", err);
-              });
+              .catch(() => undefined);
 
             setAnalysisResult({ ...analysisData.analysis });
             setIsProcessingCapture(false);
@@ -1233,8 +1033,6 @@ export default function CameraScreen({ navigation }) {
           return currentUri;
         });
       } catch (analysisError) {
-        console.error("Analysis failed:", analysisError);
-
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
@@ -1264,33 +1062,26 @@ export default function CameraScreen({ navigation }) {
           return currentUri;
         });
       }
-    } catch (error) {
-      console.error("Error picking image:", error);
+    } catch {
       setIsProcessingCapture(false);
     }
   };
 
-  // Load user profile for personalization
   const loadUserProfile = async () => {
     try {
       const profile = await getProfile();
       setUserProfile(profile);
-      console.log("User profile loaded for personalization:", profile);
-    } catch (error) {
-      console.error("Error loading user profile:", error);
-      // Continue without profile - recommendations will work but won't be personalized
+    } catch {
+      // Recommendations can continue without profile personalization.
     }
   };
 
   useEffect(() => {
     RNStatusBar.setHidden(true, "none");
 
-    // Load user profile
     loadUserProfile();
 
-    // Cleanup on unmount
     return () => {
-      // Clear any pending timers
       if (captureTimerRef.current) {
         clearTimeout(captureTimerRef.current);
       }
@@ -1300,7 +1091,7 @@ export default function CameraScreen({ navigation }) {
       if (hapticIntervalRef.current) {
         clearInterval(hapticIntervalRef.current);
       }
-      // Abort any ongoing network requests
+
       if (analysisAbortControllerRef.current) {
         analysisAbortControllerRef.current.abort();
       }
@@ -1314,8 +1105,6 @@ export default function CameraScreen({ navigation }) {
         videoGenerationAbortControllerRef.current.abort();
       }
 
-      // Reset all state when screen unmounts
-      // This handles cleanup for all navigation
       setCapturedPhotoUri(null);
       setCapturedPhotoBase64(null);
       setTryOnResultStoragePath(null);
@@ -1332,7 +1121,6 @@ export default function CameraScreen({ navigation }) {
     };
   }, []);
 
-  // Animated styles
   const buttonAnimatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ scale: buttonScale.value }],
@@ -1344,7 +1132,6 @@ export default function CameraScreen({ navigation }) {
     pointerEvents: isCameraReady ? "auto" : "none",
   };
 
-  // Border glow animated styles
   const borderAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: borderOpacity.value,
@@ -1370,17 +1157,14 @@ export default function CameraScreen({ navigation }) {
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.container}>
         {capturedPhotoUri ? (
-          // Show captured photo as background when photo is taken
           <>
             <Image
               resizeMode="cover"
               source={{ uri: capturedPhotoUri }}
               style={StyleSheet.absoluteFillObject}
             />
-            {/* Top overlay icons - hide during processing */}
             {!isProcessingCapture && (
               <View style={styles.imageOverlayIcons}>
-                {/* X icon - top left */}
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={handleClose}
@@ -1389,10 +1173,8 @@ export default function CameraScreen({ navigation }) {
                   <Ionicons color="#fff" name="close" size={28} />
                 </TouchableOpacity>
 
-                {/* Snazzy AI text in center */}
                 <Text style={styles.overlayTitle}>Snazzy AI</Text>
 
-                {/* Refresh icon - top right */}
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={handleRefresh}
@@ -1404,7 +1186,6 @@ export default function CameraScreen({ navigation }) {
             )}
           </>
         ) : (
-          // Show camera view when no photo is captured
           <>
             <CameraView
               enableTorch={torchEnabled}
@@ -1421,7 +1202,6 @@ export default function CameraScreen({ navigation }) {
               ref={cameraRef}
               style={StyleSheet.absoluteFillObject}
             />
-            {/* Corner Brackets */}
             <View pointerEvents="none" style={styles.cornerBracketsContainer}>
               <View style={[styles.cornerBracket, styles.cornerTopLeft]} />
               <View style={[styles.cornerBracket, styles.cornerTopRight]} />
@@ -1445,7 +1225,6 @@ export default function CameraScreen({ navigation }) {
           </>
         )}
 
-        {/* Glowing Border Effect */}
         <Animated.View
           pointerEvents="none"
           style={[styles.borderContainer, borderAnimatedStyle]}
@@ -1469,15 +1248,12 @@ export default function CameraScreen({ navigation }) {
           </Animated.View>
         </Animated.View>
 
-        {/* Capture Button - only show when camera is ready and no photo is captured */}
         {!capturedPhotoUri && (
           <View style={styles.captureButtonContainer}>
-            {/* Gallery icon - left */}
             <TouchableOpacity activeOpacity={0.7} onPress={handlePickImage}>
               <Ionicons color="#fff" name="images-outline" size={28} />
             </TouchableOpacity>
 
-            {/* Main Button */}
             <Animated.View
               style={[
                 styles.captureButton,
@@ -1493,7 +1269,6 @@ export default function CameraScreen({ navigation }) {
               />
             </Animated.View>
 
-            {/* Sparkles icon - right */}
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setTorchEnabled((prev) => !prev)}
@@ -1507,7 +1282,6 @@ export default function CameraScreen({ navigation }) {
           </View>
         )}
 
-        {/* Bottom Sheet for Analysis Results */}
         {(isAnalyzing || analysisResult) && (
           <BottomSheet
             animateOnMount={true}
@@ -1618,13 +1392,11 @@ export default function CameraScreen({ navigation }) {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Recommendations Section - Always visible */}
                   <View style={styles.recommendationsContainer}>
                     <Text style={styles.recommendationsTitle}>
                       Recommended Items
                     </Text>
 
-                    {/* Show items if recommendations have been generated */}
                     {hasGeneratedRecommendations &&
                     analysisResult.recommendations &&
                     analysisResult.recommendations.length > 0
@@ -1719,7 +1491,6 @@ export default function CameraScreen({ navigation }) {
                         )}
                   </View>
 
-                  {/* Generate Recommendations Button - At the very bottom */}
                   {!hasGeneratedRecommendations &&
                     analysisResult.isValidPhoto && (
                       <View style={{ paddingBottom: insets.bottom + 12 }}>
@@ -1767,7 +1538,6 @@ export default function CameraScreen({ navigation }) {
                       </View>
                     )}
 
-                  {/* Regenerate Button - Shows after recommendations generated, hides after first regeneration */}
                   {hasGeneratedRecommendations && regenerateCount < 1 && (
                     <View style={{ paddingBottom: insets.bottom + 12 }}>
                       <TouchableOpacity
@@ -1857,7 +1627,6 @@ export default function CameraScreen({ navigation }) {
           </View>
         )}
 
-        {/* Loading Screen - Full white screen with loading indicator */}
         {showLoadingScreen && (
           <View style={styles.loadingScreenOverlay}>
             <ActivityIndicator color="#007AFF" size="large" />
@@ -1865,7 +1634,6 @@ export default function CameraScreen({ navigation }) {
           </View>
         )}
 
-        {/* Try-On Result Overlay - Full screen overlay with result image or video */}
         {showTryOnResult && tryOnResultImage && (
           <View style={styles.tryOnResultOverlay}>
             <Image
@@ -1881,9 +1649,7 @@ export default function CameraScreen({ navigation }) {
                 style={StyleSheet.absoluteFillObject}
               />
             )}
-            {/* Top overlay icons for try-on result */}
             <View style={styles.imageOverlayIcons}>
-              {/* Back arrow - top left */}
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={handleCloseTryOnResult}
@@ -1892,10 +1658,8 @@ export default function CameraScreen({ navigation }) {
                 <Ionicons color="#fff" name="arrow-back" size={28} />
               </TouchableOpacity>
 
-              {/* Snazzy AI text in center */}
               <Text style={styles.overlayTitle}>Snazzy AI</Text>
 
-              {/* Play/Pause icon - top right */}
               <TouchableOpacity
                 activeOpacity={0.7}
                 disabled={isGeneratingVideo}
@@ -1932,7 +1696,6 @@ export default function CameraScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  // Border glow styles
   borderContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
@@ -1959,7 +1722,6 @@ const styles = StyleSheet.create({
     shadowRadius: 25,
     top: 0,
   },
-  // BottomSheet styles
   bottomSheetBackground: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
@@ -2124,7 +1886,6 @@ const styles = StyleSheet.create({
     marginTop: "auto",
     width: 24,
   },
-  // Image overlay icons
   imageOverlayIcons: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -2160,7 +1921,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 20,
   },
-  // Loading Screen styles
   loadingScreenOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
@@ -2233,7 +1993,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     width: width * 0.9,
   },
-  // Try-On Modal styles
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
@@ -2388,7 +2147,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
   },
-  // Try-On Result Overlay styles
   tryOnResultOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#3a3b3c",

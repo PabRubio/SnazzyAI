@@ -17,9 +17,13 @@ const SHOE_SIZES = ["6", "7", "8", "9", "10", "11", "12", "13"];
 export default function ClothingSizesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { data, updateData } = useOnboarding();
+  const hasCompleteSizeSelection = Boolean(
+    data.shirtSize && data.pantsSize && data.shoeSize,
+  );
+  const progress = CURRENT_STEP / TOTAL_STEPS;
 
   const handleContinue = () => {
-    if (data.shirtSize && data.pantsSize && data.shoeSize) {
+    if (hasCompleteSizeSelection) {
       navigation.navigate("OnboardingFavoriteStyles");
     }
   };
@@ -28,11 +32,8 @@ export default function ClothingSizesScreen({ navigation }) {
     navigation.goBack();
   };
 
-  const progress = CURRENT_STEP / TOTAL_STEPS;
-
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -51,7 +52,6 @@ export default function ClothingSizesScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
         <Text style={styles.title}>Your optimal sizes</Text>
 
@@ -134,16 +134,14 @@ export default function ClothingSizesScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          disabled={!data.shirtSize || !data.pantsSize || !data.shoeSize}
+          disabled={!hasCompleteSizeSelection}
           onPress={handleContinue}
           style={[
             styles.continueButton,
-            (!data.shirtSize || !data.pantsSize || !data.shoeSize) &&
-              styles.continueButtonDisabled,
+            !hasCompleteSizeSelection && styles.continueButtonDisabled,
           ]}
         >
           <Text style={styles.continueButtonText}>Continue</Text>

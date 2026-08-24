@@ -11,6 +11,7 @@ const CURRENT_STEP = 8;
 
 export default function ValueProp2Screen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const progress = CURRENT_STEP / TOTAL_STEPS;
 
   const handleContinue = () => {
     navigation.navigate("OnboardingCurrencyPrice");
@@ -20,11 +21,8 @@ export default function ValueProp2Screen({ navigation }) {
     navigation.goBack();
   };
 
-  const progress = CURRENT_STEP / TOTAL_STEPS;
-
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -43,7 +41,6 @@ export default function ValueProp2Screen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>Product Suggestions</Text>
         <Text style={styles.subtitle}>
@@ -58,7 +55,6 @@ export default function ValueProp2Screen({ navigation }) {
         </View>
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}

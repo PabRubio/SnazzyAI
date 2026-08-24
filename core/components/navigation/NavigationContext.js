@@ -8,7 +8,6 @@ export function NavigationProvider({ children }) {
   const [showAppStack, setShowAppStack] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check initial session on mount
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setShowAppStack(!!session);

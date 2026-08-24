@@ -1,8 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import BottomSheet, {
-  BottomSheetScrollView,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -23,7 +20,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  FlatList,
   Image,
   Linking,
   Platform,
@@ -36,11 +32,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   interpolate,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -56,9 +49,8 @@ import { useNavigation } from "../components/navigation/NavigationContext";
 import Text from "../components/typography/Text";
 import { useOnboarding } from "./OnboardingContext";
 
-const { height, width } = Dimensions.get("window");
+const { height } = Dimensions.get("window");
 const BUTTON_SIZE = 60;
-const BUTTON_BORDER_SIZE = 4;
 
 const GOOGLE_WEB_CLIENT_ID =
   "100333808813-h41jibhk6cffhqec6qosait664ib30mm.apps.googleusercontent.com";
@@ -71,13 +63,11 @@ GoogleSignin.configure({
   webClientId: GOOGLE_WEB_CLIENT_ID,
 });
 
-// Utility function for safe haptic feedback
 const safeHaptic = async (hapticFunction) => {
   try {
     await hapticFunction();
-  } catch (error) {
-    // Silently handle haptic not supported on device
-    console.log("Haptics not available on this device");
+  } catch {
+    // Haptics are optional and may be unavailable on some devices.
   }
 };
 
@@ -124,7 +114,7 @@ export default function FreeTrialScreen({ navigation }) {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [, setIsCapturing] = useState(false);
   const [isProcessingCapture, setIsProcessingCapture] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -150,33 +140,27 @@ export default function FreeTrialScreen({ navigation }) {
 
   const { dismiss } = useSuperwall();
   const { registerPlacement } = usePlacement({
-    onDismiss: (info, result) => {
+    onDismiss: (_info, result) => {
       if (["purchased", "restored"].includes(result?.type)) {
         switchToAppStack();
       }
     },
-    onError: (error) => {
-      console.error("Paywall error:", error);
-    },
+    onError: (_error) => {},
   });
 
-  // Show paywall for premium features
   const showPaywall = async () => {
     try {
       await dismiss();
       await registerPlacement({
         placement: "campaign_trigger",
       });
-    } catch (error) {
-      console.error("Failed to show paywall:", error);
-    }
+    } catch {}
   };
 
-  // BottomSheet setup
   const bottomSheetRef = useRef(null);
   const snapPoints = useMemo(() => ["25%", "85%"], []);
 
-  // Request in-app review when user swipes bottom sheet up for the first time
+  // Request an in-app review after the first upward expansion.
   const handleBottomSheetChange = useCallback(
     async (index) => {
       if (index === 1 && !hasRequestedReviewRef.current && analysisResult) {
@@ -189,7 +173,6 @@ export default function FreeTrialScreen({ navigation }) {
     [analysisResult],
   );
 
-  // Handle picking image from gallery
   const handlePickImage = async () => {
     if (isProcessingCapture) return;
 
@@ -205,7 +188,6 @@ export default function FreeTrialScreen({ navigation }) {
       }
 
       const photo = result.assets[0];
-      console.log("Image picked:", photo.uri);
 
       setIsProcessingCapture(true);
       setCapturedPhotoUri(photo.uri);
@@ -219,8 +201,6 @@ export default function FreeTrialScreen({ navigation }) {
       analysisAbortControllerRef.current = abortController;
 
       try {
-        console.log("Starting outfit analysis...");
-
         const { data, error } = await supabase.functions.invoke(
           "analyze-outfit",
           {
@@ -240,7 +220,6 @@ export default function FreeTrialScreen({ navigation }) {
         }
 
         const analysisData = { analysis: data };
-        console.log("Analysis complete:", analysisData);
 
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
@@ -260,8 +239,6 @@ export default function FreeTrialScreen({ navigation }) {
           return currentUri;
         });
       } catch (analysisError) {
-        console.error("Analysis failed:", analysisError);
-
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
@@ -306,13 +283,11 @@ export default function FreeTrialScreen({ navigation }) {
           return currentUri;
         });
       }
-    } catch (error) {
-      console.error("Error picking image:", error);
+    } catch {
       setIsProcessingCapture(false);
     }
   };
 
-  // Handle opening purchase URLs in browser
   const handleOpenPurchaseUrl = useCallback(
     async (url) => {
       if (recommendationClickCount >= 1) {
@@ -345,8 +320,7 @@ export default function FreeTrialScreen({ navigation }) {
         }
 
         await Linking.openURL(url);
-      } catch (error) {
-        console.error("Error opening URL:", error);
+      } catch {
         Alert.alert(
           "Error",
           "Unable to open the link. Please try again later.",
@@ -357,12 +331,10 @@ export default function FreeTrialScreen({ navigation }) {
     [recommendationClickCount],
   );
 
-  // Handle favourite button - triggers paywall
   const handleToggleFavorite = useCallback(() => {
     showPaywall();
   }, []);
 
-  // Reset to the camera view
   const handleRefresh = useCallback(() => {
     if (analysisAbortControllerRef.current) {
       analysisAbortControllerRef.current.abort();
@@ -389,7 +361,6 @@ export default function FreeTrialScreen({ navigation }) {
     }, 250);
   }, []);
 
-  // Save onboarding profile to Supabase after sign-in
   const saveOnboardingProfile = async () => {
     try {
       const {
@@ -403,9 +374,7 @@ export default function FreeTrialScreen({ navigation }) {
       });
 
       if (error) throw error;
-      console.log("Onboarding profile saved successfully");
 
-      // Upload photo and save analysis
       if (capturedPhotoBase64 && analysisResult) {
         try {
           const { url: photoUrl } = await uploadPhoto(
@@ -414,16 +383,11 @@ export default function FreeTrialScreen({ navigation }) {
           );
           const analysisId = await saveOutfitAnalysis(analysisResult, photoUrl);
           setAnalysisResult((prev) => ({ ...prev, analysisId }));
-        } catch (err) {
-          console.error("Failed to save photo/analysis:", err);
-        }
+        } catch {}
       }
-    } catch (error) {
-      console.error("Error saving onboarding profile:", error);
-    }
+    } catch {}
   };
 
-  // Generate recommendations after authentication
   const generateRecommendationsAfterAuth = async () => {
     if (!analysisResult || !analysisResult.isValidPhoto) return;
 
@@ -433,16 +397,10 @@ export default function FreeTrialScreen({ navigation }) {
     recommendationsAbortControllerRef.current = abortController;
 
     try {
-      console.log("Generating recommendations on demand...");
+      const accumulatedProducts = [];
 
-      let accumulatedProducts = [];
-
-      for (let run = 0; run < 3; run++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         if (abortController.signal.aborted) break;
-
-        console.log(
-          `Recommendation run ${run + 1}/3 (have ${accumulatedProducts.length} so far)...`,
-        );
 
         const { data, error } = await supabase.functions.invoke(
           "search-products-2",
@@ -456,18 +414,19 @@ export default function FreeTrialScreen({ navigation }) {
         );
 
         if (error) {
-          console.error(`Recommendation run ${run + 1} failed:`, error.message);
           continue;
         }
 
         if (data?.products) {
           const existingUrls = new Set(
-            accumulatedProducts.map((p) => p.purchaseUrl),
+            accumulatedProducts.map((product) => product.purchaseUrl),
           );
           const newProducts = data.products.filter(
-            (p) => !existingUrls.has(p.purchaseUrl),
+            (product) => !existingUrls.has(product.purchaseUrl),
           );
-          newProducts.map((item) => accumulatedProducts.push(item));
+          newProducts.forEach((product) => {
+            accumulatedProducts.push(product);
+          });
         }
 
         if (accumulatedProducts.length >= 10) break;
@@ -479,8 +438,6 @@ export default function FreeTrialScreen({ navigation }) {
         throw new Error("No recommendations returned after 3 attempts");
       }
 
-      console.log(`Final recommendations: ${recommendations.length} products`);
-
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
       }
@@ -488,14 +445,12 @@ export default function FreeTrialScreen({ navigation }) {
       setAnalysisResult((prevResult) => {
         const updatedResult = {
           ...prevResult,
-          recommendations: recommendations,
+          recommendations,
         };
 
         if (prevResult.analysisId) {
           saveRecommendations(prevResult.analysisId, recommendations).catch(
-            (err) => {
-              console.error("Failed to save recommendations:", err);
-            },
+            () => {},
           );
         }
 
@@ -505,8 +460,6 @@ export default function FreeTrialScreen({ navigation }) {
       setHasGeneratedRecommendations(true);
       setIsGeneratingRecommendations(false);
     } catch (error) {
-      console.error("Failed to generate recommendations:", error);
-
       if (recommendationsAbortControllerRef.current === abortController) {
         recommendationsAbortControllerRef.current = null;
       }
@@ -520,7 +473,6 @@ export default function FreeTrialScreen({ navigation }) {
     }
   };
 
-  // Handle Google Sign-In
   const handleGoogleSignIn = async () => {
     try {
       setIsSigningIn(true);
@@ -541,9 +493,6 @@ export default function FreeTrialScreen({ navigation }) {
 
       if (error) throw error;
 
-      console.log("Successfully signed in:", data.user.email);
-
-      // Check if this is an existing user (has profile data already)
       const { data: profile } = await supabase
         .from("profiles")
         .select("shoe_size")
@@ -553,22 +502,15 @@ export default function FreeTrialScreen({ navigation }) {
       const isExistingUser = profile && profile.shoe_size;
 
       if (isExistingUser) {
-        // Existing user - redirect to Home without saving onboarding data
-        console.log("Existing user detected, redirecting to Home");
+        // Existing users skip onboarding persistence and the paywall.
         switchToAppStack();
       } else {
-        // New user - save profile first, then generate recommendations
-        console.log(
-          "New user detected, saving profile and generating recommendations",
-        );
         setIsAuthenticated(true);
         await saveOnboardingProfile();
         await generateRecommendationsAfterAuth();
-        // Stay on FreeTrialScreen - new users must go through paywall
+        // New users remain here to complete the paywall flow.
       }
     } catch (error) {
-      console.error("Sign-in error:", error);
-
       let errorMsg = "Failed to sign in with Google";
       if (error.code === "SIGN_IN_CANCELLED") {
         errorMsg = "Sign-in cancelled";
@@ -586,7 +528,6 @@ export default function FreeTrialScreen({ navigation }) {
     }
   };
 
-  // Handle Apple Sign-In
   const handleAppleSignIn = async () => {
     try {
       setIsSigningIn(true);
@@ -608,11 +549,8 @@ export default function FreeTrialScreen({ navigation }) {
       });
 
       if (error) throw error;
-
-      console.log("Successfully signed in:", data.user.email);
       await syncAppleProfileFromCredential(credential, data.user);
 
-      // Check if this is an existing user (has profile data already)
       const { data: profile } = await supabase
         .from("profiles")
         .select("shoe_size")
@@ -622,25 +560,18 @@ export default function FreeTrialScreen({ navigation }) {
       const isExistingUser = profile && profile.shoe_size;
 
       if (isExistingUser) {
-        // Existing user - redirect to Home without saving onboarding data
-        console.log("Existing user detected, redirecting to Home");
+        // Existing users skip onboarding persistence and the paywall.
         switchToAppStack();
       } else {
-        // New user - save profile first, then generate recommendations
-        console.log(
-          "New user detected, saving profile and generating recommendations",
-        );
         setIsAuthenticated(true);
         await saveOnboardingProfile();
         await generateRecommendationsAfterAuth();
-        // Stay on FreeTrialScreen - new users must go through paywall
+        // New users remain here to complete the paywall flow.
       }
     } catch (error) {
       if (error.code === "ERR_REQUEST_CANCELED") {
         return;
       }
-
-      console.error("Sign-in error:", error);
 
       let errorMsg = "Failed to sign in with Apple";
       if (error.message) {
@@ -653,7 +584,6 @@ export default function FreeTrialScreen({ navigation }) {
     }
   };
 
-  // Handle Generate Recommendations button - requires sign-in first
   const handleGenerateRecommendations = useCallback(async () => {
     if (
       !analysisResult ||
@@ -683,22 +613,18 @@ export default function FreeTrialScreen({ navigation }) {
     isAuthenticated,
   ]);
 
-  // Animation values
+  // Keep dormant animation slots to preserve the established Hook order.
   const buttonScale = useSharedValue(1);
-  const buttonOpacity = useSharedValue(0);
+  useSharedValue(0);
 
-  // Border glow animation values
   const borderOpacity = useSharedValue(0);
-  const borderGlowProgress = useSharedValue(0);
+  useSharedValue(0);
   const borderPulse = useSharedValue(0);
   const borderGlow = useSharedValue(0);
 
-  // Handle capture button press start
   const handlePressIn = async () => {
-    // Don't start a new capture if one is being processed
     if (isProcessingCapture) return;
 
-    // Clear any pending delayed capture
     if (delayedCaptureRef.current) {
       clearTimeout(delayedCaptureRef.current);
       delayedCaptureRef.current = null;
@@ -706,20 +632,17 @@ export default function FreeTrialScreen({ navigation }) {
 
     setIsCapturing(true);
 
-    // Start continuous very light haptic feedback
     hapticIntervalRef.current = setInterval(async () => {
       await safeHaptic(() => Haptics.selectionAsync());
     }, 50);
 
-    // Start animations
     buttonScale.value = withTiming(0.85, { duration: 100 });
 
-    // Start border glow animations
     borderOpacity.value = withTiming(1, {
       duration: 300,
       easing: Easing.out(Easing.ease),
     });
-    // Set static border opacity without pulsing
+    // Keep the border opacity static while the capture is active.
     borderPulse.value = withTiming(0.5, {
       duration: 300,
       easing: Easing.out(Easing.ease),
@@ -729,42 +652,30 @@ export default function FreeTrialScreen({ navigation }) {
       easing: Easing.out(Easing.ease),
     });
 
-    // Set capture timer (2 seconds)
     captureTimerRef.current = setTimeout(() => {
-      // Button held for 2 seconds - stop haptic feedback
       if (hapticIntervalRef.current) {
         clearInterval(hapticIntervalRef.current);
         hapticIntervalRef.current = null;
       }
 
-      // Clear timer reference
       captureTimerRef.current = null;
-
-      // Reset button scale immediately when haptic ends
       buttonScale.value = withTiming(1, { duration: 200 });
-
-      // Take photo immediately when haptic ends
       handleCapture();
     }, 2000);
   };
 
-  // Handle capture button press end
   const handlePressOut = () => {
     setIsCapturing(false);
 
-    // Clear haptic interval
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
       hapticIntervalRef.current = null;
     }
 
-    // Check if button was held for full 2 seconds
     if (captureTimerRef.current) {
-      // Button released early - cancel capture and fade out border
       clearTimeout(captureTimerRef.current);
       captureTimerRef.current = null;
 
-      // Fade out border animations since capture was cancelled
       borderOpacity.value = withTiming(0, {
         duration: 200,
         easing: Easing.in(Easing.ease),
@@ -777,36 +688,27 @@ export default function FreeTrialScreen({ navigation }) {
         duration: 200,
         easing: Easing.in(Easing.ease),
       });
-
-      // Reset button scale
       buttonScale.value = withTiming(1, { duration: 100 });
     } else {
-      // Photo was already taken, border animation already faded in timer
-      // Just reset button scale
       buttonScale.value = withTiming(1, { duration: 100 });
     }
   };
 
-  // Handle photo capture
   const handleCapture = async () => {
     if (!cameraRef.current || !isCameraReady || isProcessingCapture) return;
 
-    // Set processing flag
     setIsProcessingCapture(true);
 
-    // Clear delayed capture ref
     if (delayedCaptureRef.current) {
       clearTimeout(delayedCaptureRef.current);
       delayedCaptureRef.current = null;
     }
 
-    // Clear haptic interval immediately
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
       hapticIntervalRef.current = null;
     }
 
-    // Fade out border animation right when photo is taken
     borderOpacity.value = withTiming(0, {
       duration: 200,
       easing: Easing.in(Easing.ease),
@@ -821,8 +723,6 @@ export default function FreeTrialScreen({ navigation }) {
     });
 
     try {
-      // Photo capture with shutter sound disabled
-
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
         exif: false,
@@ -830,28 +730,17 @@ export default function FreeTrialScreen({ navigation }) {
         shutterSound: false,
       });
 
-      console.log("Photo captured:", photo.uri);
-
-      // Store the captured photo URI and base64
       setCapturedPhotoUri(photo.uri);
       setCapturedPhotoBase64(photo.base64);
-
-      // Reset capture state
       setIsCapturing(false);
-
-      // Start analysis and show BottomSheet immediately with the photo
       setIsAnalyzing(true);
       setAnalysisResult(null);
-      bottomSheetRef.current?.snapToIndex(0); // Snap to collapsed state (25%)
+      bottomSheetRef.current?.snapToIndex(0);
 
-      // Create abort controller for this analysis
       const abortController = new AbortController();
       analysisAbortControllerRef.current = abortController;
 
       try {
-        console.log("Starting outfit analysis...");
-
-        // Call Supabase edge function for outfit analysis
         const { data, error } = await supabase.functions.invoke(
           "analyze-outfit",
           {
@@ -871,17 +760,14 @@ export default function FreeTrialScreen({ navigation }) {
         }
 
         const result = { analysis: data };
-        console.log("Analysis complete:", result);
 
-        // Clear abort controller on success
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
 
-        // Check if photo was cleared (user pressed refresh) - if so, don't show results
+        // Ignore a stale result if the user reset the camera while it was pending.
         setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
-            // Photo was cleared, cancel showing results
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
             return currentUri;
@@ -894,54 +780,29 @@ export default function FreeTrialScreen({ navigation }) {
           return currentUri;
         });
       } catch (analysisError) {
-        console.error("Analysis failed:", analysisError);
-
-        // Clear abort controller on error
         if (analysisAbortControllerRef.current === abortController) {
           analysisAbortControllerRef.current = null;
         }
 
-        // If request was aborted, just clean up silently
         if (analysisError.name === "AbortError") {
           setIsAnalyzing(false);
           setIsProcessingCapture(false);
           return;
         }
 
-        // Check if photo was cleared (user pressed refresh) - if so, don't show error
+        // Ignore a stale failure if the user reset the camera while it was pending.
         setCapturedPhotoUri((currentUri) => {
           if (!currentUri) {
-            // Photo was cleared, just reset flags
             setIsAnalyzing(false);
             setIsProcessingCapture(false);
             return currentUri;
           }
 
-          // Photo still exists, show error
           setIsAnalyzing(false);
           bottomSheetRef.current?.close();
 
-          // Determine error message based on error type
-          let errorMsg = "Connection error. Please check your network.";
-          if (analysisError.message) {
-            if (
-              analysisError.message.includes("Network") ||
-              analysisError.message.includes("connection") ||
-              analysisError.message.includes("timeout")
-            ) {
-              errorMsg = "Connection error. Please check your network.";
-            } else if (analysisError.message.includes("API key")) {
-              errorMsg = "Configuration error. Please check API settings.";
-            } else if (analysisError.message.includes("Rate limit")) {
-              errorMsg = "Too many requests. Please wait a moment.";
-            } else {
-              errorMsg = "Failed to analyze outfit. Please try again.";
-            }
-          }
-
           setIsProcessingCapture(false);
 
-          // Reset camera state and clear captured photo
           setTimeout(() => {
             setAnalysisResult(null);
             setCapturedPhotoUri(null);
@@ -950,8 +811,7 @@ export default function FreeTrialScreen({ navigation }) {
           return currentUri;
         });
       }
-    } catch (error) {
-      console.error("Error taking picture:", error);
+    } catch {
       setIsCapturing(false);
       setIsProcessingCapture(false);
 
@@ -959,13 +819,11 @@ export default function FreeTrialScreen({ navigation }) {
         { text: "OK" },
       ]);
 
-      // Clear haptic interval on error as well
       if (hapticIntervalRef.current) {
         clearInterval(hapticIntervalRef.current);
         hapticIntervalRef.current = null;
       }
 
-      // Clear delayed capture on error
       if (delayedCaptureRef.current) {
         clearTimeout(delayedCaptureRef.current);
         delayedCaptureRef.current = null;
@@ -973,7 +831,6 @@ export default function FreeTrialScreen({ navigation }) {
     }
   };
 
-  // Request camera permission on mount
   useEffect(() => {
     const requestPermission = async () => {
       if (!cameraPermission?.granted && !permissionRequested) {
@@ -1010,7 +867,6 @@ export default function FreeTrialScreen({ navigation }) {
     cameraPermission?.granted && setIsCameraReady(false);
   }, [cameraPermission?.granted]);
 
-  // Animated styles
   const buttonAnimatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ scale: buttonScale.value }],
@@ -1022,7 +878,6 @@ export default function FreeTrialScreen({ navigation }) {
     pointerEvents: isCameraReady ? "auto" : "none",
   };
 
-  // Border glow animated styles
   const borderAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: borderOpacity.value,
@@ -1048,14 +903,12 @@ export default function FreeTrialScreen({ navigation }) {
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.container}>
         {capturedPhotoUri ? (
-          // Show captured photo as background when photo is taken
           <>
             <Image
               resizeMode="cover"
               source={{ uri: capturedPhotoUri }}
               style={StyleSheet.absoluteFillObject}
             />
-            {/* Snazzy AI title - hide during processing */}
             {!isProcessingCapture && (
               <View style={styles.imageOverlayIcons}>
                 <Text style={styles.overlayTitle}>Snazzy AI</Text>
@@ -1063,7 +916,6 @@ export default function FreeTrialScreen({ navigation }) {
             )}
           </>
         ) : (
-          // Show camera view when no photo is captured
           <>
             {hasCameraPermission && (
               <CameraView
@@ -1073,7 +925,7 @@ export default function FreeTrialScreen({ navigation }) {
                 }}
                 facing="back"
                 onCameraReady={() => {
-                  // Add a small delay to ensure camera is fully initialized
+                  // Allow the camera to finish initializing before enabling capture.
                   setTimeout(() => {
                     setIsCameraReady(true);
                   }, 500);
@@ -1082,7 +934,6 @@ export default function FreeTrialScreen({ navigation }) {
                 style={StyleSheet.absoluteFillObject}
               />
             )}
-            {/* Corner Brackets */}
             <View pointerEvents="none" style={styles.cornerBracketsContainer}>
               <View style={[styles.cornerBracket, styles.cornerTopLeft]} />
               <View style={[styles.cornerBracket, styles.cornerTopRight]} />
@@ -1106,7 +957,6 @@ export default function FreeTrialScreen({ navigation }) {
           </>
         )}
 
-        {/* Glowing Border Effect */}
         <Animated.View
           pointerEvents="none"
           style={[styles.borderContainer, borderAnimatedStyle]}
@@ -1130,15 +980,12 @@ export default function FreeTrialScreen({ navigation }) {
           </Animated.View>
         </Animated.View>
 
-        {/* Capture Button - only show when camera is ready and no photo is captured */}
         {!capturedPhotoUri && (
           <View style={styles.captureButtonContainer}>
-            {/* Gallery icon - left */}
             <TouchableOpacity activeOpacity={0.7} onPress={handlePickImage}>
               <Ionicons color="#fff" name="images-outline" size={28} />
             </TouchableOpacity>
 
-            {/* Main Button */}
             <Animated.View
               style={[
                 styles.captureButton,
@@ -1154,7 +1001,6 @@ export default function FreeTrialScreen({ navigation }) {
               />
             </Animated.View>
 
-            {/* Sparkles icon - right */}
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setTorchEnabled((prev) => !prev)}
@@ -1168,7 +1014,6 @@ export default function FreeTrialScreen({ navigation }) {
           </View>
         )}
 
-        {/* Bottom Sheet for Analysis Results */}
         {(isAnalyzing || analysisResult) && (
           <BottomSheet
             animateOnMount={true}
@@ -1230,13 +1075,11 @@ export default function FreeTrialScreen({ navigation }) {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Recommendations Section - Always visible */}
                   <View style={styles.recommendationsContainer}>
                     <Text style={styles.recommendationsTitle}>
                       Recommended Items
                     </Text>
 
-                    {/* Show items if recommendations have been generated */}
                     {hasGeneratedRecommendations &&
                     analysisResult.recommendations &&
                     analysisResult.recommendations.length > 0
@@ -1299,8 +1142,7 @@ export default function FreeTrialScreen({ navigation }) {
                             </View>
                           </TouchableOpacity>
                         ))
-                      : /* Show placeholder when no recommendations generated yet */
-                        !hasGeneratedRecommendations && (
+                      : !hasGeneratedRecommendations && (
                           <View
                             style={[
                               styles.placeholderContainer,
@@ -1339,7 +1181,6 @@ export default function FreeTrialScreen({ navigation }) {
                     </View>
                   )}
 
-                  {/* Generate Recommendations Button - At the very bottom */}
                   {!hasGeneratedRecommendations &&
                     analysisResult.isValidPhoto && (
                       <View style={{ paddingBottom: insets.bottom + 12 }}>
@@ -1449,7 +1290,6 @@ const styles = StyleSheet.create({
     height: 48,
     width: "100%",
   },
-  // Border glow styles
   borderContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
@@ -1476,7 +1316,6 @@ const styles = StyleSheet.create({
     shadowRadius: 25,
     top: 0,
   },
-  // BottomSheet styles
   bottomSheetBackground: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
@@ -1626,7 +1465,6 @@ const styles = StyleSheet.create({
     marginTop: "auto",
     width: 24,
   },
-  // Image overlay icons
   imageOverlayIcons: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1679,14 +1517,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 8,
-  },
-  overlayIconButton: {
-    alignItems: "center",
-    backgroundColor: "rgba(58, 59, 60, 0.5)",
-    borderRadius: 22,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
   },
   overlayTitle: {
     alignSelf: "center",
@@ -1769,12 +1599,6 @@ const styles = StyleSheet.create({
   recommendationsContainer: {
     flex: 1,
     marginTop: 10,
-  },
-  recommendationSeparator: {
-    height: 12,
-  },
-  recommendationsList: {
-    paddingBottom: 20,
   },
   recommendationsTitle: {
     color: "#3a3b3c",

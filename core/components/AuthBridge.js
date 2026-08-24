@@ -42,21 +42,15 @@ export default function SuperwallIdentity() {
         if (error) throw error;
         return syncUser(session?.user);
       })
-      .catch((error) => console.error("Failed to sync Superwall user:", error));
+      .catch(() => {});
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
-        void superwallRef.current
-          .signOut()
-          .catch((error) =>
-            console.error("Failed to sign out of Superwall:", error),
-          );
+        void superwallRef.current.signOut().catch(() => {});
       } else if (event === "SIGNED_IN" || event === "USER_UPDATED") {
-        void syncUser(session?.user).catch((error) =>
-          console.error("Failed to sync Superwall user:", error),
-        );
+        void syncUser(session?.user).catch(() => {});
       }
     });
 

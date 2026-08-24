@@ -36,7 +36,7 @@ import { useNavigation } from "../components/navigation/NavigationContext";
 import Text from "../components/typography/Text";
 import TextInput from "../components/typography/TextInput";
 
-const { height, width } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 const getDiscoverProductKey = (item, index) =>
   item.purchaseUrl || `${item.name}-${item.brand}-${index}`;
 const INITIAL_DISCOVER_STATE = {
@@ -46,7 +46,6 @@ const INITIAL_DISCOVER_STATE = {
   validationError: "",
 };
 
-// Conversion helpers
 const cmToFt = (cm) => {
   if (!cm || isNaN(cm)) return null;
   const totalInches = cm / 2.54;
@@ -62,6 +61,16 @@ const kgToLb = (kg) => {
   if (!kg || isNaN(kg)) return null;
   const lb = Math.round(kg * 2.20462);
   return `${lb} lbs`;
+};
+
+const sanitizePreferenceListInput = (value) => {
+  let sanitizedValue = value.replace(/[^a-zA-Z\s,]/g, "");
+  sanitizedValue = sanitizedValue.replace(/^[,\s]+/, "");
+  sanitizedValue = sanitizedValue.replace(/\s+/g, " ");
+  sanitizedValue = sanitizedValue.replace(/,+/g, ",");
+  sanitizedValue = sanitizedValue.replace(/\s+,/g, ",");
+  sanitizedValue = sanitizedValue.replace(/,(?!\s)/g, ", ");
+  return sanitizedValue;
 };
 
 export default function HomeScreen({ navigation }) {
@@ -85,7 +94,7 @@ export default function HomeScreen({ navigation }) {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [activeTab, setActiveTab] = useState("home");
   const [discover, setDiscover] = useState(INITIAL_DISCOVER_STATE);
-  const { getEntitlements, subscriptionStatus, update } = useUser();
+  const { subscriptionStatus, update } = useUser();
   const { switchToAuthStack } = useNavigation();
   const { registerPlacement: registerCameraPlacement } = usePlacement({
     onDismiss: (info, result) => {
@@ -93,8 +102,7 @@ export default function HomeScreen({ navigation }) {
         navigation.navigate("Camera");
       }
     },
-    onError: (error) => {
-      console.error("Paywall error:", error);
+    onError: (_error) => {
       Alert.alert("Error", "Failed to show paywall. Please try again.");
     },
   });
@@ -107,7 +115,7 @@ export default function HomeScreen({ navigation }) {
 
   // Settings state - Personal Information
   const [name, setName] = useState("");
-  const [birth, setBirth] = useState("");
+  const [, setBirth] = useState("");
   const [birthDate, setBirthDate] = useState(null);
   const [showBirthPicker, setShowBirthPicker] = useState(false);
   const [email, setEmail] = useState("");
@@ -133,7 +141,6 @@ export default function HomeScreen({ navigation }) {
   const [language, setLanguage] = useState("English");
   const [pushNotifications, setPushNotifications] = useState(true);
 
-  // Load profile from Supabase on mount
   useEffect(() => {
     loadOutfitHistory();
     loadProfileData();
@@ -143,14 +150,13 @@ export default function HomeScreen({ navigation }) {
   const loadProfileData = async () => {
     setSettingsStatus("loading");
     try {
-      // Check if user is still authenticated before loading profile
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!user) {
-        // User is not authenticated (likely signing out), skip loading
+        // Loading can race with sign-out, so an absent user is an empty state.
         setSettingsStatus("empty");
         return;
       }
@@ -161,7 +167,6 @@ export default function HomeScreen({ navigation }) {
         setName(profile.name || "");
         setEmail(profile.email || "");
 
-        // Convert birth from YYYY-MM-DD to DD/MM/YYYY and Date object
         if (profile.birth) {
           const [year, month, day] = profile.birth.split("-");
           setBirth(`${day}/${month}/${year}`);
@@ -187,7 +192,7 @@ export default function HomeScreen({ navigation }) {
         setFavoriteStyles(profile.favorite_styles?.join(", ") || "");
         setLanguage(profile.language || "English");
 
-        // Sync notification toggle with actual permission status
+        // The saved preference cannot enable notifications without permission.
         const { status } = await Notifications.getPermissionsAsync();
         const hasPermission = status === "granted";
         setPushNotifications(
@@ -197,8 +202,7 @@ export default function HomeScreen({ navigation }) {
       } else {
         setSettingsStatus("empty");
       }
-    } catch (error) {
-      console.error("Error loading profile:", error);
+    } catch {
       setSettingsStatus("error");
     }
   };
@@ -226,12 +230,11 @@ export default function HomeScreen({ navigation }) {
 
       setFavorites(data || []);
 
-      // Initialize favoriteItems Map with all items as favorited
-      const favMap = new Map();
+      const favoriteMap = new Map();
       (data || []).forEach((item) => {
-        favMap.set(item.id, item.id); // Store database ID as value
+        favoriteMap.set(item.id, item.id);
       });
-      setFavoriteItems(favMap);
+      setFavoriteItems(favoriteMap);
       setFavoritesStatus("ready");
     } catch {
       setFavoritesStatus("error");
@@ -286,7 +289,6 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
-  // Predefined options
   const genderOptions = ["Male", "Female", "Other"];
   const currencyOptions = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"];
   const languageOptions = ["English" /*, 'Spanish'*/];
@@ -300,7 +302,6 @@ export default function HomeScreen({ navigation }) {
   const minBirthDate = new Date();
   minBirthDate.setFullYear(minBirthDate.getFullYear() - 100);
 
-  // Format date for display (same as onboarding)
   const formatBirthDate = (date) => {
     if (!date) return "";
     const months = [
@@ -320,7 +321,6 @@ export default function HomeScreen({ navigation }) {
     return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
-  // Handle birth date change
   const handleBirthDateChange = (event, selectedDate) => {
     if (Platform.OS === "android") {
       setShowBirthPicker(false);
@@ -358,20 +358,17 @@ export default function HomeScreen({ navigation }) {
     setShoeSize(size);
   };
 
-  // Handle notification toggle
   const handleNotificationToggle = async (value) => {
     if (value) {
-      // Turning ON - set state immediately for smooth animation
+      // Update immediately so the toggle animation stays responsive.
       setPushNotifications(true);
 
-      // Then check/request permission
       const { status: existingStatus } =
         await Notifications.getPermissionsAsync();
 
       if (existingStatus !== "granted") {
         const { status } = await Notifications.requestPermissionsAsync();
         if (status !== "granted") {
-          // Permission denied - revert toggle and show alert
           setPushNotifications(false);
           Alert.alert(
             "Notifications Disabled",
@@ -384,17 +381,14 @@ export default function HomeScreen({ navigation }) {
         }
       }
     } else {
-      // Turning OFF - just update state
       setPushNotifications(false);
     }
   };
 
-  // Handle location update
   const handleUpdateLocation = async () => {
     setLoadingLocation(true);
 
     try {
-      // Check/request permission
       const { status: existingStatus } =
         await Location.getForegroundPermissionsAsync();
 
@@ -418,7 +412,6 @@ export default function HomeScreen({ navigation }) {
         return;
       }
 
-      // Get current location with 5 second timeout
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 5000),
       );
@@ -446,7 +439,6 @@ export default function HomeScreen({ navigation }) {
         setLocation(locationString);
       }
     } catch (error) {
-      console.error("Error getting location:", error);
       if (error.message === "timeout") {
         Alert.alert(
           "Timeout",
@@ -460,7 +452,6 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  // Handle export data
   const handleExportData = async () => {
     Alert.alert(
       "Export Data",
@@ -469,35 +460,30 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
-  // Handle opening external links
   const handleOpenLink = async (url, title) => {
     try {
       await Linking.openURL(url);
-    } catch (error) {
+    } catch {
       Alert.alert("Error", `Unable to open ${title}`);
     }
   };
 
-  // Handle save settings
   const handleSaveSettings = async () => {
     Keyboard.dismiss();
 
     try {
       setSaving(true);
 
-      // Parse favorite styles from comma-separated string to array
       const stylesArray = favoriteStyles
         .split(",")
         .map((style) => style.trim())
         .filter((style) => style.length > 0);
 
-      // Parse favorite brands from comma-separated string to array
       const brandsArray = favoriteBrands
         .split(",")
         .map((brand) => brand.trim())
         .filter((brand) => brand.length > 0);
 
-      // Validate required fields
       if (!birthDate) {
         Alert.alert("Birth Date Required", "Please select your birth date.", [
           { text: "OK" },
@@ -574,7 +560,6 @@ export default function HomeScreen({ navigation }) {
         return;
       }
 
-      // Validate height range
       const heightVal = parseInt(height);
       if (heightVal < 150 || heightVal > 250) {
         Alert.alert(
@@ -586,7 +571,6 @@ export default function HomeScreen({ navigation }) {
         return;
       }
 
-      // Validate weight range
       const weightVal = parseInt(weight);
       if (weightVal < 50 || weightVal > 200) {
         Alert.alert(
@@ -598,7 +582,6 @@ export default function HomeScreen({ navigation }) {
         return;
       }
 
-      // Validate price range (required)
       if (!priceMin || !priceMax) {
         Alert.alert(
           "Price Range Required",
@@ -622,7 +605,6 @@ export default function HomeScreen({ navigation }) {
         return;
       }
 
-      // Format birth date as YYYY-MM-DD for database
       let birthForDb = null;
       if (birthDate) {
         const year = birthDate.getFullYear();
@@ -654,15 +636,13 @@ export default function HomeScreen({ navigation }) {
         "Your preferences have been updated successfully.",
         [{ text: "OK" }],
       );
-    } catch (error) {
-      console.error("Error saving settings:", error);
+    } catch {
       Alert.alert("Error", "Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  // Handle sign out
   const handleSignOut = async () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { style: "cancel", text: "Cancel" },
@@ -670,10 +650,8 @@ export default function HomeScreen({ navigation }) {
         onPress: async () => {
           try {
             await supabase.auth.signOut();
-            // Manually switch to auth stack
             switchToAuthStack();
-          } catch (error) {
-            console.error("Error signing out:", error);
+          } catch {
             Alert.alert("Error", "Failed to sign out. Please try again.");
           }
         },
@@ -683,7 +661,6 @@ export default function HomeScreen({ navigation }) {
     ]);
   };
 
-  // Handle delete account
   const handleDeleteAccount = async () => {
     if (deletingAccountRef.current || deletingAccount) return;
 
@@ -719,15 +696,13 @@ export default function HomeScreen({ navigation }) {
         "Account Deleted",
         "Your Snazzy AI account has been deleted. If you have an active subscription, deleting your account does not cancel billing. Manage or cancel subscriptions through your settings.",
       );
-    } catch (error) {
-      console.error("Error deleting account:", error);
+    } catch {
       deletingAccountRef.current = false;
       setDeletingAccount(false);
       Alert.alert("Error", "Failed to delete account. Please try again.");
     }
   }
 
-  // Reset settings to saved values (discard unsaved changes)
   const resetSettings = async () => {
     setShowBirthPicker(false);
     await loadProfileData();
@@ -777,7 +752,7 @@ export default function HomeScreen({ navigation }) {
         products: data.products.slice(0, 10),
         status: "success",
       }));
-    } catch (error) {
+    } catch {
       if (
         controller.signal.aborted ||
         discoverRequestRef.current.id !== requestId
@@ -821,12 +796,10 @@ export default function HomeScreen({ navigation }) {
       resetDiscover();
     }
 
-    // If switching to home tab, reload favorites
     if (tabName === "home" && activeTab !== "home") {
       loadFavorites();
     }
 
-    // If leaving settings tab, reset unsaved changes
     if (activeTab === "settings" && tabName !== "settings") {
       resetSettings();
     }
@@ -860,16 +833,13 @@ export default function HomeScreen({ navigation }) {
         });
       };
 
-      // Check camera permission before navigating
       if (cameraPermission?.granted) {
         await requestAccessPaywall();
       } else {
-        // Request permission
         const result = await requestCameraPermission();
         if (result.granted) {
           await requestAccessPaywall();
         } else {
-          // Permission denied - show alert with Settings option
           Alert.alert(
             "Camera Access Required",
             "SnazzyAI needs camera access to analyze your outfits. Please enable camera permissions in Settings.",
@@ -885,29 +855,27 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  // Handle toggling favorite (like CameraScreen)
   const handleToggleFavorite = async (item, itemId = item.id) => {
     const isFavorited = favoriteItems.has(itemId);
-    const dbUuid = favoriteItems.get(itemId);
+    const favoriteId = favoriteItems.get(itemId);
 
     // Optimistically update UI
-    setFavoriteItems((prevFavorites) => {
-      const newFavorites = new Map(prevFavorites);
+    setFavoriteItems((currentFavoriteItems) => {
+      const updatedFavoriteItems = new Map(currentFavoriteItems);
       if (isFavorited) {
-        newFavorites.delete(itemId);
+        updatedFavoriteItems.delete(itemId);
       } else {
-        newFavorites.set(itemId, "pending"); // Temporary until we get the UUID
+        // The database ID replaces this marker after the insert completes.
+        updatedFavoriteItems.set(itemId, "pending");
       }
-      return newFavorites;
+      return updatedFavoriteItems;
     });
 
     try {
       if (isFavorited) {
-        // Remove from favorites using database UUID
-        await removeFavorite(dbUuid);
+        await removeFavorite(favoriteId);
       } else {
-        // Add back to favorites and get the database UUID
-        const newDbUuid = await addFavorite({
+        const newFavoriteId = await addFavorite({
           brand: item.brand,
           category: item.category || "other",
           description: item.description,
@@ -916,39 +884,34 @@ export default function HomeScreen({ navigation }) {
           price: item.price,
           purchaseUrl: item.purchaseUrl || item.purchase_url,
         });
-        // Update with actual database UUID
-        setFavoriteItems((prevFavorites) => {
-          const newFavorites = new Map(prevFavorites);
-          newFavorites.set(itemId, newDbUuid);
-          return newFavorites;
+        setFavoriteItems((currentFavoriteItems) => {
+          const updatedFavoriteItems = new Map(currentFavoriteItems);
+          updatedFavoriteItems.set(itemId, newFavoriteId);
+          return updatedFavoriteItems;
         });
       }
-    } catch (error) {
-      console.error("Failed to toggle favorite:", error);
+    } catch {
       // Revert optimistic update on error
-      setFavoriteItems((prevFavorites) => {
-        const newFavorites = new Map(prevFavorites);
+      setFavoriteItems((currentFavoriteItems) => {
+        const updatedFavoriteItems = new Map(currentFavoriteItems);
         if (isFavorited) {
-          newFavorites.set(itemId, dbUuid); // Restore with original UUID
+          updatedFavoriteItems.set(itemId, favoriteId);
         } else {
-          newFavorites.delete(itemId);
+          updatedFavoriteItems.delete(itemId);
         }
-        return newFavorites;
+        return updatedFavoriteItems;
       });
       Alert.alert("Error", "Failed to update favorite");
     }
   };
 
-  // Handle internal tab switching - scroll main view to top
   useEffect(() => {
     scrollViewRef.current?.scrollTo({ animated: false, y: 0 });
   }, [activeTab]);
 
-  // Handle screen navigation - reset before leaving to prevent glitches on return
   useEffect(() => {
     const unsubscribeBlur = navigation.addListener("blur", () => {
-      // Reset everything when leaving the screen (e.g., going to Camera)
-      // This happens before navigation, so no glitch when returning
+      // Reset before navigation completes to avoid stale offsets on return.
       scrollViewRef.current?.scrollTo({ animated: false, y: 0 });
       shirtsScrollRef.current?.scrollTo({ animated: false, x: 0 });
       pantsScrollRef.current?.scrollTo({ animated: false, x: 0 });
@@ -958,7 +921,6 @@ export default function HomeScreen({ navigation }) {
     });
 
     const unsubscribeFocus = navigation.addListener("focus", () => {
-      // Reload favorites when returning to HomeScreen (e.g., from Camera)
       if (activeTab === "home") {
         loadFavorites();
       }
@@ -967,7 +929,6 @@ export default function HomeScreen({ navigation }) {
       }
     });
 
-    // Cleanup listeners when component unmounts
     return () => {
       unsubscribeBlur();
       unsubscribeFocus();
@@ -985,7 +946,6 @@ export default function HomeScreen({ navigation }) {
       locations={[0, 0.5, 1]}
       style={styles.container}
     >
-      {/* Main content area - currently empty */}
       <ScrollView
         keyboardShouldPersistTaps="handled"
         ref={scrollViewRef}
@@ -1002,7 +962,6 @@ export default function HomeScreen({ navigation }) {
               />
             </View>
 
-            {/* Sections Container */}
             <View
               style={[
                 styles.sectionsContainer,
@@ -1033,7 +992,6 @@ export default function HomeScreen({ navigation }) {
                 </View>
               ) : (
                 <>
-                  {/* Shirts Section */}
                   {favorites.filter((item) => item.category === "shirts")
                     .length > 0 && (
                     <View style={styles.sectionContainer}>
@@ -1048,7 +1006,7 @@ export default function HomeScreen({ navigation }) {
                       >
                         {favorites
                           .filter((item) => item.category === "shirts")
-                          .map((item, index, arr) => {
+                          .map((item, index, items) => {
                             const isFavorited = favoriteItems.has(item.id);
                             return (
                               <TouchableOpacity
@@ -1059,7 +1017,7 @@ export default function HomeScreen({ navigation }) {
                                 }
                                 style={[
                                   styles.recommendationCard,
-                                  index !== arr.length - 1 &&
+                                  index !== items.length - 1 &&
                                     styles.cardMarginRight,
                                 ]}
                               >
@@ -1119,7 +1077,6 @@ export default function HomeScreen({ navigation }) {
                     </View>
                   )}
 
-                  {/* Pants Section */}
                   {favorites.filter((item) => item.category === "pants")
                     .length > 0 && (
                     <View style={styles.sectionContainer}>
@@ -1134,7 +1091,7 @@ export default function HomeScreen({ navigation }) {
                       >
                         {favorites
                           .filter((item) => item.category === "pants")
-                          .map((item, index, arr) => {
+                          .map((item, index, items) => {
                             const isFavorited = favoriteItems.has(item.id);
                             return (
                               <TouchableOpacity
@@ -1145,7 +1102,7 @@ export default function HomeScreen({ navigation }) {
                                 }
                                 style={[
                                   styles.recommendationCard,
-                                  index !== arr.length - 1 &&
+                                  index !== items.length - 1 &&
                                     styles.cardMarginRight,
                                 ]}
                               >
@@ -1205,7 +1162,6 @@ export default function HomeScreen({ navigation }) {
                     </View>
                   )}
 
-                  {/* Shoes Section */}
                   {favorites.filter((item) => item.category === "shoes")
                     .length > 0 && (
                     <View style={styles.sectionContainer}>
@@ -1220,7 +1176,7 @@ export default function HomeScreen({ navigation }) {
                       >
                         {favorites
                           .filter((item) => item.category === "shoes")
-                          .map((item, index, arr) => {
+                          .map((item, index, items) => {
                             const isFavorited = favoriteItems.has(item.id);
                             return (
                               <TouchableOpacity
@@ -1231,7 +1187,7 @@ export default function HomeScreen({ navigation }) {
                                 }
                                 style={[
                                   styles.recommendationCard,
-                                  index !== arr.length - 1 &&
+                                  index !== items.length - 1 &&
                                     styles.cardMarginRight,
                                 ]}
                               >
@@ -1291,7 +1247,6 @@ export default function HomeScreen({ navigation }) {
                     </View>
                   )}
 
-                  {/* Other Section */}
                   {favorites.filter((item) => item.category === "other")
                     .length > 0 && (
                     <View style={styles.sectionContainer}>
@@ -1306,7 +1261,7 @@ export default function HomeScreen({ navigation }) {
                       >
                         {favorites
                           .filter((item) => item.category === "other")
-                          .map((item, index, arr) => {
+                          .map((item, index, items) => {
                             const isFavorited = favoriteItems.has(item.id);
                             return (
                               <TouchableOpacity
@@ -1317,7 +1272,7 @@ export default function HomeScreen({ navigation }) {
                                 }
                                 style={[
                                   styles.recommendationCard,
-                                  index !== arr.length - 1 &&
+                                  index !== items.length - 1 &&
                                     styles.cardMarginRight,
                                 ]}
                               >
@@ -1606,7 +1561,6 @@ export default function HomeScreen({ navigation }) {
               </View>
             ) : (
               <>
-                {/* Personal Information Section */}
                 <View style={styles.settingsSection}>
                   <Text style={styles.settingsSectionTitle}>
                     Personal Information
@@ -1797,7 +1751,6 @@ export default function HomeScreen({ navigation }) {
                   </View>
                 </View>
 
-                {/* Shopping Preferences Section */}
                 <View style={styles.settingsSection}>
                   <Text style={styles.settingsSectionTitle}>
                     Shopping Preferences
@@ -1806,24 +1759,26 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.settingsCard}>
                     <Text style={styles.settingsLabel}>Currency</Text>
                     <View style={styles.styleChipsContainer}>
-                      {currencyOptions.map((curr) => (
+                      {currencyOptions.map((currencyOption) => (
                         <TouchableOpacity
                           activeOpacity={0.7}
-                          key={curr}
-                          onPress={() => selectCurrency(curr)}
+                          key={currencyOption}
+                          onPress={() => selectCurrency(currencyOption)}
                           style={[
                             styles.styleChip,
                             styles.currencyChip,
-                            currency === curr && styles.styleChipSelected,
+                            currency === currencyOption &&
+                              styles.styleChipSelected,
                           ]}
                         >
                           <Text
                             style={[
                               styles.styleChipText,
-                              currency === curr && styles.styleChipTextSelected,
+                              currency === currencyOption &&
+                                styles.styleChipTextSelected,
                             ]}
                           >
-                            {curr}
+                            {currencyOption}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -1975,32 +1930,13 @@ export default function HomeScreen({ navigation }) {
                       blurOnSubmit={true}
                       maxLength={100}
                       multiline
-
                       numberOfLines={3}
                       onBlur={() =>
                         setFavoriteStyles(favoriteStyles.replace(/[,\s]+$/, ""))
                       }
-                      onChangeText={(text) => {
-                        // Allow only letters, spaces, commas, and hyphens
-                        let filtered = text.replace(/[^a-zA-Z\s,]/g, "");
-
-                        // Remove leading commas and spaces
-                        filtered = filtered.replace(/^[,\s]+/, "");
-
-                        // Collapse multiple spaces into one
-                        filtered = filtered.replace(/\s+/g, " ");
-
-                        // Collapse multiple commas into one
-                        filtered = filtered.replace(/,+/g, ",");
-
-                        // Remove spaces before commas
-                        filtered = filtered.replace(/\s+,/g, ",");
-
-                        // Ensure comma is always followed by a space
-                        filtered = filtered.replace(/,(?!\s)/g, ", ");
-
-                        setFavoriteStyles(filtered);
-                      }}
+                      onChangeText={(text) =>
+                        setFavoriteStyles(sanitizePreferenceListInput(text))
+                      }
                       placeholder="e.g., Old Money style"
                       placeholderTextColor="#999"
                       style={[styles.settingsInput, styles.textAreaInput]}
@@ -2016,32 +1952,13 @@ export default function HomeScreen({ navigation }) {
                       blurOnSubmit={true}
                       maxLength={100}
                       multiline
-
                       numberOfLines={3}
                       onBlur={() =>
                         setFavoriteBrands(favoriteBrands.replace(/[,\s]+$/, ""))
                       }
-                      onChangeText={(text) => {
-                        // Allow only letters, spaces, and commas
-                        let filtered = text.replace(/[^a-zA-Z\s,]/g, "");
-
-                        // Remove leading commas and spaces
-                        filtered = filtered.replace(/^[,\s]+/, "");
-
-                        // Collapse multiple spaces into one
-                        filtered = filtered.replace(/\s+/g, " ");
-
-                        // Collapse multiple commas into one
-                        filtered = filtered.replace(/,+/g, ",");
-
-                        // Remove spaces before commas
-                        filtered = filtered.replace(/\s+,/g, ",");
-
-                        // Ensure comma is always followed by a space
-                        filtered = filtered.replace(/,(?!\s)/g, ", ");
-
-                        setFavoriteBrands(filtered);
-                      }}
+                      onChangeText={(text) =>
+                        setFavoriteBrands(sanitizePreferenceListInput(text))
+                      }
                       placeholder="e.g., Nike, Adidas, Zara"
                       placeholderTextColor="#999"
                       style={[styles.settingsInput, styles.textAreaInput]}
@@ -2051,7 +1968,6 @@ export default function HomeScreen({ navigation }) {
                   </View>
                 </View>
 
-                {/* General Device Settings Section */}
                 <View style={styles.settingsSection}>
                   <Text style={styles.settingsSectionTitle}>
                     General Device Settings
@@ -2060,23 +1976,25 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.settingsCard}>
                     <Text style={styles.settingsLabel}>Language</Text>
                     <View style={styles.styleChipsContainer}>
-                      {languageOptions.map((lang) => (
+                      {languageOptions.map((languageOption) => (
                         <TouchableOpacity
                           activeOpacity={0.7}
-                          key={lang}
-                          onPress={() => selectLanguage(lang)}
+                          key={languageOption}
+                          onPress={() => selectLanguage(languageOption)}
                           style={[
                             styles.styleChip,
-                            language === lang && styles.styleChipSelected,
+                            language === languageOption &&
+                              styles.styleChipSelected,
                           ]}
                         >
                           <Text
                             style={[
                               styles.styleChipText,
-                              language === lang && styles.styleChipTextSelected,
+                              language === languageOption &&
+                                styles.styleChipTextSelected,
                             ]}
                           >
-                            {lang}
+                            {languageOption}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -2103,7 +2021,6 @@ export default function HomeScreen({ navigation }) {
                   </View>
                 </View>
 
-                {/* Data & Privacy Section */}
                 <View style={styles.settingsSection}>
                   <Text style={styles.settingsSectionTitle}>
                     Data & Privacy Controls
@@ -2171,7 +2088,6 @@ export default function HomeScreen({ navigation }) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Action Buttons */}
                 <View style={styles.settingsActions}>
                   <TouchableOpacity
                     activeOpacity={0.7}
@@ -2245,11 +2161,9 @@ export default function HomeScreen({ navigation }) {
         )}
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
       <View
         style={[styles.navigationBar, { paddingBottom: insets.bottom + 12 }]}
       >
-        {/* Home Icon - Left */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => handleTabPress("home")}
@@ -2262,7 +2176,6 @@ export default function HomeScreen({ navigation }) {
           />
         </TouchableOpacity>
 
-        {/* Discover Icon */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => handleTabPress("discover")}
@@ -2275,7 +2188,6 @@ export default function HomeScreen({ navigation }) {
           />
         </TouchableOpacity>
 
-        {/* Plus Icon - Center */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => handleTabPress("add")}
@@ -2288,7 +2200,6 @@ export default function HomeScreen({ navigation }) {
           />
         </TouchableOpacity>
 
-        {/* Lookbook Icon */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => handleTabPress("lookbook")}
@@ -2301,7 +2212,6 @@ export default function HomeScreen({ navigation }) {
           />
         </TouchableOpacity>
 
-        {/* Settings Icon - Right */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => handleTabPress("settings")}
@@ -2346,7 +2256,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
     top: 0,
   },
-  // Currency and size chip styles
   currencyChip: {
     minWidth: 60,
   },
@@ -2464,7 +2373,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 8,
   },
-  // Link card styles
   linkCard: {
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.3)",
@@ -2749,7 +2657,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  // Settings styles
   settingsContainer: {
     paddingBottom: 32,
     paddingHorizontal: 20,
@@ -2892,13 +2799,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-  // Toggle styles
   toggleRow: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  // Version footer text
   versionFooter: {
     color: "#999",
     fontSize: 12,

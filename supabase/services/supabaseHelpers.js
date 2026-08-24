@@ -1,15 +1,6 @@
-// =====================================================
-// Supabase Helper Functions
-// Utility functions for database and storage operations
-// =====================================================
-
 import { decode } from "base64-arraybuffer";
 
 import { supabase } from "./supabase";
-
-// =====================================================
-// AUTH PROFILE FUNCTIONS
-// =====================================================
 
 const formatAppleFullName = (fullName) => {
   if (!fullName) return null;
@@ -30,13 +21,10 @@ export const syncAppleProfileFromCredential = async (credential, user) => {
     const email = credential?.email || user.email || null;
 
     if (name) {
-      const { error } = await supabase.auth.updateUser({
+      const { error: metadataError } = await supabase.auth.updateUser({
         data: { name },
       });
-
-      if (error) {
-        console.error("Failed to update Apple user metadata:", error);
-      }
+      void metadataError;
     }
 
     const profileUpdates = { id: user.id };
@@ -49,14 +37,10 @@ export const syncAppleProfileFromCredential = async (credential, user) => {
     const { error } = await supabase.from("profiles").upsert(profileUpdates);
 
     if (error) throw error;
-  } catch (error) {
-    console.error(error);
+  } catch {
+    // Apple profile enrichment is best-effort and must not block sign-in.
   }
 };
-
-// =====================================================
-// STORAGE FUNCTIONS
-// =====================================================
 
 /**
  * Upload a photo to Supabase Storage
@@ -76,16 +60,13 @@ export const uploadPhoto = async (
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
-    // Generate unique filename if not provided
     const timestamp = Date.now();
-    const filename = fileName || `${timestamp}.jpg`;
-    const filePath = `${user.id}/${filename}`;
+    const resolvedFileName = fileName || `${timestamp}.jpg`;
+    const filePath = `${user.id}/${resolvedFileName}`;
 
-    // Convert base64 to array buffer
     const arrayBuffer = decode(base64Data);
 
-    // Upload to storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(bucket)
       .upload(filePath, arrayBuffer, {
         contentType: "image/jpeg",
@@ -94,7 +75,6 @@ export const uploadPhoto = async (
 
     if (error) throw error;
 
-    // Get public URL
     const {
       data: { publicUrl },
     } = supabase.storage.from(bucket).getPublicUrl(filePath);
@@ -103,8 +83,7 @@ export const uploadPhoto = async (
       path: filePath,
       url: publicUrl,
     };
-  } catch (error) {
-    console.error("Error uploading photo:", error);
+  } catch {
     throw new Error("Failed to upload photo");
   }
 };
@@ -119,15 +98,10 @@ export const deletePhoto = async (filePath, bucket = "outfit-photos") => {
     const { error } = await supabase.storage.from(bucket).remove([filePath]);
 
     if (error) throw error;
-  } catch (error) {
-    console.error("Error deleting photo:", error);
+  } catch {
     throw new Error("Failed to delete photo");
   }
 };
-
-// =====================================================
-// OUTFIT ANALYSIS FUNCTIONS
-// =====================================================
 
 /**
  * Save outfit analysis to database
@@ -158,8 +132,7 @@ export const saveOutfitAnalysis = async (analysisData, photoUrl) => {
 
     if (error) throw error;
     return data.id;
-  } catch (error) {
-    console.error("Error saving outfit analysis:", error);
+  } catch {
     throw new Error("Failed to save outfit analysis");
   }
 };
@@ -185,15 +158,10 @@ export const getOutfitHistory = async (limit = 20) => {
 
     if (error) throw error;
     return data;
-  } catch (error) {
-    console.error("Error fetching outfit history:", error);
+  } catch {
     throw new Error("Failed to fetch outfit history");
   }
 };
-
-// =====================================================
-// PRODUCT RECOMMENDATION FUNCTIONS
-// =====================================================
 
 /**
  * Save product recommendations for an analysis
@@ -202,24 +170,23 @@ export const getOutfitHistory = async (limit = 20) => {
  */
 export const saveRecommendations = async (analysisId, recommendations) => {
   try {
-    const recommendationsData = recommendations.map((rec) => ({
+    const recommendationRows = recommendations.map((recommendation) => ({
       analysis_id: analysisId,
-      brand: rec.brand,
-      category: rec.category || "other",
-      description: rec.description,
-      image_url: rec.imageUrl,
-      name: rec.name,
-      price: rec.price,
-      purchase_url: rec.purchaseUrl,
+      brand: recommendation.brand,
+      category: recommendation.category || "other",
+      description: recommendation.description,
+      image_url: recommendation.imageUrl,
+      name: recommendation.name,
+      price: recommendation.price,
+      purchase_url: recommendation.purchaseUrl,
     }));
 
     const { error } = await supabase
       .from("product_recommendations")
-      .insert(recommendationsData);
+      .insert(recommendationRows);
 
     if (error) throw error;
-  } catch (error) {
-    console.error("Error saving recommendations:", error);
+  } catch {
     throw new Error("Failed to save recommendations");
   }
 };
@@ -239,15 +206,10 @@ export const getRecommendations = async (analysisId) => {
 
     if (error) throw error;
     return data;
-  } catch (error) {
-    console.error("Error fetching recommendations:", error);
+  } catch {
     throw new Error("Failed to fetch recommendations");
   }
 };
-
-// =====================================================
-// FAVORITE PRODUCTS FUNCTIONS
-// =====================================================
 
 /**
  * Add a product to favorites
@@ -279,9 +241,8 @@ export const addFavorite = async (product) => {
       .single();
 
     if (error) throw error;
-    return data.id; // Return the database UUID
-  } catch (error) {
-    console.error("Error adding favorite:", error);
+    return data.id;
+  } catch {
     throw new Error("Failed to add favorite");
   }
 };
@@ -298,8 +259,7 @@ export const removeFavorite = async (favoriteId) => {
       .eq("id", favoriteId);
 
     if (error) throw error;
-  } catch (error) {
-    console.error("Error removing favorite:", error);
+  } catch {
     throw new Error("Failed to remove favorite");
   }
 };
@@ -323,15 +283,10 @@ export const getFavorites = async () => {
 
     if (error) throw error;
     return data;
-  } catch (error) {
-    console.error("Error fetching favorites:", error);
+  } catch {
     throw new Error("Failed to fetch favorites");
   }
 };
-
-// =====================================================
-// TRY-ON RESULTS FUNCTIONS
-// =====================================================
 
 /**
  * Save virtual try-on result
@@ -364,8 +319,7 @@ export const saveTryOnResult = async (
 
     if (error) throw error;
     return data.id;
-  } catch (error) {
-    console.error("Error saving try-on result:", error);
+  } catch {
     throw new Error("Failed to save try-on result");
   }
 };
@@ -391,15 +345,10 @@ export const getTryOnHistory = async (limit = 20) => {
 
     if (error) throw error;
     return data;
-  } catch (error) {
-    console.error("Error fetching try-on history:", error);
+  } catch {
     throw new Error("Failed to fetch try-on history");
   }
 };
-
-// =====================================================
-// PROFILE FUNCTIONS
-// =====================================================
 
 /**
  * Get user profile
@@ -420,8 +369,7 @@ export const getProfile = async () => {
 
     if (error) throw error;
     return data;
-  } catch (error) {
-    console.error("Error fetching profile:", error);
+  } catch {
     throw new Error("Failed to fetch profile");
   }
 };
@@ -443,8 +391,7 @@ export const updateProfile = async (profileData) => {
       .eq("id", user.id);
 
     if (error) throw error;
-  } catch (error) {
-    console.error("Error updating profile:", error);
+  } catch {
     throw new Error("Failed to update profile");
   }
 };

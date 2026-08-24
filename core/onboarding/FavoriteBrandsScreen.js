@@ -36,6 +36,8 @@ export default function FavoriteBrandsScreen({ navigation }) {
     (data.favoriteBrands || []).join(", "),
   );
   const selectedBrands = parseFavoriteText(brandsText);
+  const hasSelectedBrands = selectedBrands.length > 0;
+  const progress = CURRENT_STEP / TOTAL_STEPS;
 
   const updateBrandsText = (text) => {
     updateData({ favoriteBrands: parseFavoriteText(text) });
@@ -43,7 +45,7 @@ export default function FavoriteBrandsScreen({ navigation }) {
   };
 
   const handleContinue = () => {
-    Keyboard.dismiss(); // Dismiss keyboard
+    Keyboard.dismiss();
     updateData({ favoriteBrands: selectedBrands });
     navigation.navigate("OnboardingQuestionnaire3");
   };
@@ -54,21 +56,20 @@ export default function FavoriteBrandsScreen({ navigation }) {
 
   const toggleBrand = (brand) => {
     if (selectedBrands.includes(brand)) {
-      updateBrandsText(selectedBrands.filter((b) => b !== brand).join(", "));
+      updateBrandsText(
+        selectedBrands
+          .filter((selectedBrand) => selectedBrand !== brand)
+          .join(", "),
+      );
     } else {
       updateBrandsText([...selectedBrands, brand].join(", "));
     }
   };
 
-  const isBrandSelected = (brand) => {
-    return selectedBrands.includes(brand);
-  };
-
-  const progress = CURRENT_STEP / TOTAL_STEPS;
+  const isBrandSelected = (brand) => selectedBrands.includes(brand);
 
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -87,27 +88,25 @@ export default function FavoriteBrandsScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>Favorite brands?</Text>
 
         <View style={styles.inputGroup}>
           <TextInput
             autoCapitalize="words"
-            blurOnSubmit={true}
+            blurOnSubmit
             maxLength={100}
             multiline
-
             numberOfLines={3}
             onBlur={() => updateBrandsText(brandsText.replace(/[,\s]+$/, ""))}
             onChangeText={(text) => {
-              let filtered = text.replace(/[^a-zA-Z\s,]/g, "");
-              filtered = filtered.replace(/^[,\s]+/, "");
-              filtered = filtered.replace(/\s+/g, " ");
-              filtered = filtered.replace(/,+/g, ",");
-              filtered = filtered.replace(/\s+,/g, ",");
-              filtered = filtered.replace(/,(?!\s)/g, ", ");
-              updateBrandsText(filtered);
+              let filteredText = text.replace(/[^a-zA-Z\s,]/g, "");
+              filteredText = filteredText.replace(/^[,\s]+/, "");
+              filteredText = filteredText.replace(/\s+/g, " ");
+              filteredText = filteredText.replace(/,+/g, ",");
+              filteredText = filteredText.replace(/\s+,/g, ",");
+              filteredText = filteredText.replace(/,(?!\s)/g, ", ");
+              updateBrandsText(filteredText);
             }}
             placeholder="e.g., Nike, Adidas, Zara"
             placeholderTextColor="#999"
@@ -142,15 +141,14 @@ export default function FavoriteBrandsScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          disabled={!selectedBrands.length}
+          disabled={!hasSelectedBrands}
           onPress={handleContinue}
           style={[
             styles.continueButton,
-            !selectedBrands.length && styles.continueButtonDisabled,
+            !hasSelectedBrands && styles.continueButtonDisabled,
           ]}
         >
           <Text style={styles.continueButtonText}>Continue</Text>

@@ -17,7 +17,6 @@ import { useOnboarding } from "./OnboardingContext";
 const TOTAL_STEPS = 15;
 const CURRENT_STEP = 6;
 
-// Conversion helpers
 const cmToFt = (cm) => {
   if (!cm || isNaN(cm)) return null;
   const totalInches = cm / 2.54;
@@ -31,8 +30,8 @@ const cmToFt = (cm) => {
 
 const kgToLb = (kg) => {
   if (!kg || isNaN(kg)) return null;
-  const lb = Math.round(kg * 2.20462);
-  return `${lb} lbs`;
+  const pounds = Math.round(kg * 2.20462);
+  return `${pounds} lbs`;
 };
 
 export default function MeasurementsScreen({ navigation }) {
@@ -42,10 +41,10 @@ export default function MeasurementsScreen({ navigation }) {
   const handleContinue = () => {
     Keyboard.dismiss();
 
-    const heightVal = parseInt(data.height);
-    const weightVal = parseInt(data.weight);
+    const heightValue = parseInt(data.height);
+    const weightValue = parseInt(data.weight);
 
-    if (heightVal < 150 || heightVal > 250) {
+    if (heightValue < 150 || heightValue > 250) {
       Alert.alert(
         "Invalid Height",
         "Please enter a height between 150 and 250 cm.",
@@ -54,7 +53,7 @@ export default function MeasurementsScreen({ navigation }) {
       return;
     }
 
-    if (weightVal < 50 || weightVal > 200) {
+    if (weightValue < 50 || weightValue > 200) {
       Alert.alert(
         "Invalid Weight",
         "Please enter a weight between 50 and 200 kg.",
@@ -70,12 +69,13 @@ export default function MeasurementsScreen({ navigation }) {
     navigation.goBack();
   };
 
+  const formattedHeight = data.height && cmToFt(parseInt(data.height));
+  const formattedWeight = data.weight && kgToLb(parseInt(data.weight));
   const isValid = data.height.length > 0 && data.weight.length > 0;
   const progress = CURRENT_STEP / TOTAL_STEPS;
 
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -94,7 +94,6 @@ export default function MeasurementsScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>Your measurements</Text>
 
@@ -113,10 +112,8 @@ export default function MeasurementsScreen({ navigation }) {
               style={styles.input}
               value={data.height}
             />
-            {data.height && cmToFt(parseInt(data.height)) && (
-              <Text style={styles.conversionText}>
-                ≈ {cmToFt(parseInt(data.height))}
-              </Text>
+            {formattedHeight && (
+              <Text style={styles.conversionText}>≈ {formattedHeight}</Text>
             )}
           </View>
         </View>
@@ -137,16 +134,13 @@ export default function MeasurementsScreen({ navigation }) {
               style={styles.input}
               value={data.weight}
             />
-            {data.weight && kgToLb(parseInt(data.weight)) && (
-              <Text style={styles.conversionText}>
-                ≈ {kgToLb(parseInt(data.weight))}
-              </Text>
+            {formattedWeight && (
+              <Text style={styles.conversionText}>≈ {formattedWeight}</Text>
             )}
           </View>
         </View>
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}

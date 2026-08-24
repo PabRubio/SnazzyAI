@@ -1,21 +1,15 @@
-// =====================================================
-// SnazzyAI - Analyze Outfit Edge Function
-// Uses OpenAI GPT-5 Responses API with vision
-// =====================================================
-
 // Keep this pinned URL import until the deployed function's dependencies are migrated.
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
+serve(async (request) => {
+  if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { base64Image } = await req.json();
+    const { base64Image } = await request.json();
 
     if (!base64Image) {
       return new Response(
@@ -27,14 +21,12 @@ serve(async (req) => {
       );
     }
 
-    // Get API keys from environment
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!openaiApiKey) {
       throw new Error("OPENAI_API_KEY not configured");
     }
 
-    // Analyze the image with GPT-5.1 Responses API
     const analysisRequest = {
       model: "gpt-5.1",
       reasoning: {
@@ -79,8 +71,7 @@ Return a JSON response:
       ],
     };
 
-    // Make request to OpenAI Responses API
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const openAiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -89,33 +80,28 @@ Return a JSON response:
       body: JSON.stringify(analysisRequest),
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("OpenAI API error:", response.status, errorData);
-      throw new Error(`OpenAI API error: ${response.status}`);
+    if (!openAiResponse.ok) {
+      await openAiResponse.text();
+      throw new Error(`OpenAI API error: ${openAiResponse.status}`);
     }
 
-    const data = await response.json();
+    const responseData = await openAiResponse.json();
 
-    if (data.usage) {
-      const { input_tokens = 0, output_tokens = 0 } = data.usage;
+    if (responseData.usage) {
+      const { input_tokens = 0, output_tokens = 0 } = responseData.usage;
       const cost = (input_tokens / 1e6 * 1.25) + (output_tokens / 1e6 * 10);
-      console.log(`💰 [GPT-5.1] $${cost.toFixed(6)}`);
+      void cost.toFixed(6);
     }
 
-    // Parse the response from Responses API format
-    let content = "";
+    let textContent = "";
 
-    // The response has an 'output' array with message items
-    if (data.output && Array.isArray(data.output)) {
-      // Find the message output item (type: 'message')
-      for (const item of data.output) {
-        if (item.type === "message") {
-          if (item.content && Array.isArray(item.content)) {
-            // The content is an array with output_text objects
-            for (const c of item.content) {
-              if (c.type === "output_text" && c.text) {
-                content = c.text;
+    if (responseData.output && Array.isArray(responseData.output)) {
+      for (const outputItem of responseData.output) {
+        if (outputItem.type === "message") {
+          if (outputItem.content && Array.isArray(outputItem.content)) {
+            for (const contentItem of outputItem.content) {
+              if (contentItem.type === "output_text" && contentItem.text) {
+                textContent = contentItem.text;
                 break;
               }
             }
@@ -125,36 +111,32 @@ Return a JSON response:
       }
     }
 
-    if (!content) {
+    if (!textContent) {
       throw new Error("No text content found in response");
     }
 
-    // Extract JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("No JSON found in response content");
     }
 
-    const gptResult = JSON.parse(jsonMatch[0]);
+    const analysisResult = JSON.parse(jsonMatch[0]);
 
-    // Validate the GPT-5 result
     if (
-      !gptResult.outfitName || !gptResult.shortDescription ||
-      typeof gptResult.rating !== "number" ||
-      typeof gptResult.isValidPhoto !== "boolean"
+      !analysisResult.outfitName || !analysisResult.shortDescription ||
+      typeof analysisResult.rating !== "number" ||
+      typeof analysisResult.isValidPhoto !== "boolean"
     ) {
       throw new Error("Invalid response format from GPT-5");
     }
 
-    // Return the GPT-5 analysis result
     return new Response(
-      JSON.stringify(gptResult),
+      JSON.stringify(analysisResult),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   } catch (error) {
-    console.error("Error in analyze-outfit function:", error);
     return new Response(
       JSON.stringify({
         error: error.message || "Failed to analyze outfit",

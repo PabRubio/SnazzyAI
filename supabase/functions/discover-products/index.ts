@@ -32,38 +32,54 @@ const currencySymbols: Record<string, string> = {
 };
 
 function categorizeProduct(title: string, snippet?: string): string {
-  const text = `${title} ${snippet || ""}`.toLowerCase();
+  const productText = `${title} ${snippet || ""}`.toLowerCase();
   if (
-    text.match(
-      /\b(shirt|blouse|sweater|hoodie|jacket|coat|pullover|sweatshirt)\b/,
+    /\b(shirt|blouse|sweater|hoodie|jacket|coat|pullover|sweatshirt)\b/.test(
+      productText,
     )
-  ) return "shirts";
+  ) {
+    return "shirts";
+  }
   if (
-    text.match(/\b(pant|jean|trouser|short|skirt|legging|chino|cargo|jogger)\b/)
-  ) return "pants";
+    /\b(pant|jean|trouser|short|skirt|legging|chino|cargo|jogger)\b/.test(
+      productText,
+    )
+  ) {
+    return "pants";
+  }
   if (
-    text.match(/\b(shoe|sneaker|boot|sandal|heel|loafer|slipper|footwear)\b/)
-  ) return "shoes";
+    /\b(shoe|sneaker|boot|sandal|heel|loafer|slipper|footwear)\b/.test(
+      productText,
+    )
+  ) {
+    return "shoes";
+  }
   return "other";
 }
 
 function extractBrand(title: string, source?: string): string {
   if (source && source.length < 30 && !source.includes(".")) return source;
-  return title.match(/^([A-Z][a-zA-Z0-9&\s]+?)(?:\s-\s|\s\||\s\(|$)/)?.[1]
-    ?.trim() || source || "Unknown Brand";
+  const brandFromTitle = title.match(
+    /^([A-Z][a-zA-Z0-9&\s]+?)(?:\s-\s|\s\||\s\(|$)/,
+  )?.[1]?.trim();
+  return brandFromTitle || source || "Unknown Brand";
 }
 
-function formatPrice(item: Record<string, unknown>, currency: string): string {
-  if (typeof item.extracted_price === "number") {
-    return `${currencySymbols[currency] || "$"}${
-      item.extracted_price.toFixed(2)
-    }`;
+function formatPrice(
+  shoppingResult: Record<string, unknown>,
+  currency: string,
+): string {
+  if (typeof shoppingResult.extracted_price === "number") {
+    const currencySymbol = currencySymbols[currency] || "$";
+    return `${currencySymbol}${shoppingResult.extracted_price.toFixed(2)}`;
   }
-  return typeof item.price === "string" ? item.price : "Price not available";
+  return typeof shoppingResult.price === "string"
+    ? shoppingResult.price
+    : "Price not available";
 }
 
 function preferenceScore(
-  item: Record<string, unknown>,
+  shoppingResult: Record<string, unknown>,
   profile?: UserProfile,
 ): number {
   const preferences = [
@@ -73,9 +89,9 @@ function preferenceScore(
   ].filter((value): value is string =>
     typeof value === "string" && value.trim().length > 0
   );
-  const productText = `${item.title || ""} ${item.source || ""} ${
-    item.snippet || ""
-  }`.toLowerCase();
+  const productText = `${shoppingResult.title || ""} ${
+    shoppingResult.source || ""
+  } ${shoppingResult.snippet || ""}`.toLowerCase();
   return preferences.reduce(
     (score, preference) =>
       score + (productText.includes(preference.trim().toLowerCase()) ? 1 : 0),
@@ -83,13 +99,13 @@ function preferenceScore(
   );
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
+serve(async (request) => {
+  if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { prompt: rawPrompt, userProfile } = await req.json() as {
+    const { prompt: rawPrompt, userProfile } = await request.json() as {
       prompt?: unknown;
       userProfile?: UserProfile;
     };
@@ -109,7 +125,7 @@ serve(async (req) => {
     if (!serpApiKey) throw new Error("SERPAPI_API_KEY not configured");
 
     const currency = userProfile?.currency || "USD";
-    const params = new URLSearchParams({
+    const searchParameters = new URLSearchParams({
       engine: "google_shopping",
       q: prompt,
       api_key: serpApiKey,
@@ -119,69 +135,90 @@ serve(async (req) => {
     });
 
     if (userProfile?.price_min != null) {
-      params.set("min_price", String(userProfile.price_min));
+      searchParameters.set("min_price", String(userProfile.price_min));
     }
     if (userProfile?.price_max != null) {
-      params.set("max_price", String(userProfile.price_max));
+      searchParameters.set("max_price", String(userProfile.price_max));
     }
 
-    const response = await fetch(`https://serpapi.com/search?${params}`);
-    const data = await response.json();
+    const searchResponse = await fetch(
+      `https://serpapi.com/search?${searchParameters}`,
+    );
+    const searchData = await searchResponse.json();
     if (
-      !response.ok || (data.error && data.search_metadata?.status !== "Success")
+      !searchResponse.ok ||
+      (searchData.error && searchData.search_metadata?.status !== "Success")
     ) {
-      throw new Error(data.error || `SerpAPI error: ${response.status}`);
+      throw new Error(
+        searchData.error || `SerpAPI error: ${searchResponse.status}`,
+      );
     }
 
-    const rankedResults =
-      (Array.isArray(data.shopping_results) ? data.shopping_results : [])
-        .map((item: Record<string, unknown>, index: number) => ({
-          item,
-          index,
-          score: preferenceScore(item, userProfile),
-        }))
-        .sort((a, b) => b.score - a.score || a.index - b.index);
+    const rankedResults = (Array.isArray(searchData.shopping_results)
+      ? searchData.shopping_results
+      : [])
+      .map((
+        shoppingResult: Record<string, unknown>,
+        originalIndex: number,
+      ) => ({
+        shoppingResult,
+        originalIndex,
+        score: preferenceScore(shoppingResult, userProfile),
+      }))
+      .sort(
+        (leftResult, rightResult) =>
+          rightResult.score - leftResult.score ||
+          leftResult.originalIndex - rightResult.originalIndex,
+      );
 
-    const seen = new Set<string>();
+    const seenPurchaseUrls = new Set<string>();
     const products = [];
 
-    for (const { item } of rankedResults) {
-      const title = typeof item.title === "string"
-        ? item.title
+    for (const { shoppingResult } of rankedResults) {
+      const title = typeof shoppingResult.title === "string"
+        ? shoppingResult.title
         : "Unknown Product";
-      const purchaseUrl = typeof item.link === "string"
-        ? item.link
-        : typeof item.product_link === "string"
-        ? item.product_link
+      const purchaseUrl = typeof shoppingResult.link === "string"
+        ? shoppingResult.link
+        : typeof shoppingResult.product_link === "string"
+        ? shoppingResult.product_link
         : "";
-      if (!/^https?:\/\//i.test(purchaseUrl) || seen.has(purchaseUrl)) continue;
+      if (
+        !/^https?:\/\//i.test(purchaseUrl) ||
+        seenPurchaseUrls.has(purchaseUrl)
+      ) {
+        continue;
+      }
 
-      seen.add(purchaseUrl);
-      const description = typeof item.snippet === "string"
-        ? item.snippet
+      seenPurchaseUrls.add(purchaseUrl);
+      const description = typeof shoppingResult.snippet === "string"
+        ? shoppingResult.snippet
         : title;
       products.push({
         name: title,
         brand: extractBrand(
           title,
-          typeof item.source === "string" ? item.source : undefined,
+          typeof shoppingResult.source === "string"
+            ? shoppingResult.source
+            : undefined,
         ),
         description,
-        price: formatPrice(item, currency),
-        imageUrl: typeof item.thumbnail === "string"
-          ? item.thumbnail
+        price: formatPrice(shoppingResult, currency),
+        imageUrl: typeof shoppingResult.thumbnail === "string"
+          ? shoppingResult.thumbnail
           : "https://via.placeholder.com/150",
         purchaseUrl,
         category: categorizeProduct(title, description),
       });
-      if (products.length === 10) break;
+      if (products.length === 10) {
+        break;
+      }
     }
 
     return new Response(JSON.stringify({ products }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Discover product search error:", error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error

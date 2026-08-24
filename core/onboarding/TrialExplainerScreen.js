@@ -11,6 +11,7 @@ const CURRENT_STEP = 15;
 
 export default function TrialExplainerScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const progress = CURRENT_STEP / TOTAL_STEPS;
 
   const handleContinue = () => {
     navigation.navigate("OnboardingFreeTrial");
@@ -20,11 +21,8 @@ export default function TrialExplainerScreen({ navigation }) {
     navigation.goBack();
   };
 
-  const progress = CURRENT_STEP / TOTAL_STEPS;
-
   return (
     <View style={styles.container}>
-      {/* Header with back arrow and progress bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -43,17 +41,13 @@ export default function TrialExplainerScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Main content */}
       <View style={styles.content}>
-        {/* Icon */}
         <View style={styles.iconContainer}>
           <Ionicons color="#007AFF" name="sparkles" size={80} />
         </View>
 
-        {/* Title */}
         <Text style={styles.title}>Try It Free...</Text>
 
-        {/* Features list */}
         <View style={styles.featuresList}>
           <View style={styles.featureItem}>
             <Ionicons color="#007AFF" name="camera-outline" size={24} />
@@ -76,7 +70,6 @@ export default function TrialExplainerScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Bottom bar with Continue button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           activeOpacity={0.7}
